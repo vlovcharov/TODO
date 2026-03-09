@@ -28,15 +28,15 @@ public class TaskService
     {
         var task = new TodoTask
         {
-            Title         = req.Title,
-            Description   = req.Description,
-            Level         = req.Level,
-            Priority      = req.Priority,
-            ScheduledDate = req.ScheduledDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date),
+            Title          = req.Title,
+            Description    = req.Description,
+            Level          = req.Level,
+            Priority       = req.Priority,
+            ScheduledDate  = req.ScheduledDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date),
             RecurrenceMask = req.RecurrenceMask,
-            ParentId      = req.ParentId,
-            SortOrder     = await _store.GetNextSortOrderAsync(
-                req.ScheduledDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date))
+            ParentId       = req.ParentId,
+            SortOrder      = await _store.GetNextSortOrderAsync(
+                                 req.ScheduledDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date))
         };
 
         await _store.SaveTaskAsync(task);
@@ -54,71 +54,107 @@ public class TaskService
         if (req.Priority.HasValue) task.Priority = req.Priority.Value;
         if (req.ScheduledDate.HasValue) task.ScheduledDate = req.ScheduledDate.Value;
         if (req.SortOrder.HasValue) task.SortOrder = req.SortOrder.Value;
-        if (req.RecurrenceMask.HasValue)
-        {
-            task.RecurrenceMask = req.RecurrenceMask.Value;
-            if (!task.IsRecurring && task.ScheduledDateStr == "")
-                task.ScheduledDate = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        }
+        if (req.RecurrenceMask.HasValue) task.RecurrenceMask = req.RecurrenceMask.Value;
 
         await _store.SaveTaskAsync(task);
         return await _store.GetTaskAsync(id);
     }
 
-    public async Task<TodoTask?> ToggleCompleteAsync(string id, DateOnly? date = null)
+    /// <summary>
+    /// Toggle completion for a task on a given date.
+    /// All completions go through TaskCompletions table.
+    /// IsCompleted is kept as a denormalised cache.
+    /// Toggling a subtask bubbles up to sync the parent's completion state.
+    /// </summary>
+    public async Task<List<TodoTask>> ToggleCompleteAsync(string id, DateOnly? date = null)
     {
+        var checkDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
         var task = await _store.GetTaskAsync(id);
-        if (task == null) return null;
+        if (task == null) return await _store.GetTasksAsync();
 
-        if (task.IsRecurring)
+        var isNowCompleted = !await _store.IsCompletedOnDateAsync(id, checkDate);
+
+        if (isNowCompleted)
         {
-            var checkDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
-            if (task.CompletedDates.Contains(checkDate))
-                await _store.RemoveRecurringCompletionAsync(id, checkDate);
-            else
-                await _store.AddRecurringCompletionAsync(id, checkDate);
+            await _store.AddCompletionAsync(id, checkDate);
+            // Auto-complete all subtasks for this day too
+            await CompleteSubtasksForDateAsync(id, checkDate, true);
         }
         else
         {
-            var nowCompleted = !task.IsCompleted;
-            task.IsCompleted = nowCompleted;
-            await _store.SaveTaskAsync(task);
-
-            if (nowCompleted)
-                await CompleteAllSubtasksAsync(id);
-
-            if (task.ParentId != null)
-                await SyncParentCompletionAsync(task.ParentId);
+            await _store.RemoveCompletionAsync(id, checkDate);
+            // Uncheck subtasks as well
+            await CompleteSubtasksForDateAsync(id, checkDate, false);
         }
 
-        return await _store.GetTaskAsync(id);
+        // Update IsCompleted cache on the task itself
+        await UpdateIsCompletedCacheAsync(id, checkDate);
+
+        // Bubble up to parent
+        if (task.ParentId != null)
+            await SyncParentCompletionAsync(task.ParentId, checkDate);
+
+        return await _store.GetTasksAsync();
     }
 
-    private async Task CompleteAllSubtasksAsync(string parentId)
+    private async Task CompleteSubtasksForDateAsync(string parentId, DateOnly date, bool complete)
     {
         var subtasks = await _store.GetSubtasksAsync(parentId);
         foreach (var sub in subtasks)
         {
-            if (!sub.IsCompleted) { sub.IsCompleted = true; await _store.SaveTaskAsync(sub); }
-            await CompleteAllSubtasksAsync(sub.Id);
+            if (complete)
+                await _store.AddCompletionAsync(sub.Id, date);
+            else
+                await _store.RemoveCompletionAsync(sub.Id, date);
+
+            await UpdateIsCompletedCacheAsync(sub.Id, date);
+            await CompleteSubtasksForDateAsync(sub.Id, date, complete);
         }
     }
 
-    private async Task SyncParentCompletionAsync(string parentId)
+    private async Task UpdateIsCompletedCacheAsync(string taskId, DateOnly date)
     {
-        var parent = await _store.GetTaskAsync(parentId);
+        var task = await _store.GetTaskAsync(taskId);
+        if (task == null) return;
+
+        // For non-recurring tasks, IsCompleted = completed on their scheduled date
+        // For recurring tasks, IsCompleted = completed today
+        var relevantDate = task.IsRecurring ? DateOnly.FromDateTime(DateTime.UtcNow.Date) : task.ScheduledDate;
+        var done = await _store.IsCompletedOnDateAsync(taskId, relevantDate);
+
+        if (task.IsCompleted != done)
+        {
+            task.IsCompleted = done;
+            await _store.SaveTaskAsync(task);
+        }
+    }
+
+    private async Task SyncParentCompletionAsync(string parentId, DateOnly date)
+    {
+        var parent   = await _store.GetTaskAsync(parentId);
         if (parent == null) return;
 
-        var siblings = await _store.GetSubtasksAsync(parentId);
-        var allDone  = siblings.Count > 0 && siblings.All(s => s.IsCompleted);
+        var subtasks = await _store.GetSubtasksAsync(parentId);
+        if (subtasks.Count == 0) return;
 
-        if (parent.IsCompleted != allDone)
+        // Parent is complete when ALL direct subtasks are complete on this date
+        var allDone = true;
+        foreach (var sub in subtasks)
         {
-            parent.IsCompleted = allDone;
-            await _store.SaveTaskAsync(parent);
-            if (parent.ParentId != null)
-                await SyncParentCompletionAsync(parent.ParentId);
+            if (!await _store.IsCompletedOnDateAsync(sub.Id, date))
+            { allDone = false; break; }
         }
+
+        var currentlyDone = await _store.IsCompletedOnDateAsync(parentId, date);
+        if (currentlyDone != allDone)
+        {
+            if (allDone) await _store.AddCompletionAsync(parentId, date);
+            else         await _store.RemoveCompletionAsync(parentId, date);
+            await UpdateIsCompletedCacheAsync(parentId, date);
+        }
+
+        if (parent.ParentId != null)
+            await SyncParentCompletionAsync(parent.ParentId, date);
     }
 
     public async Task<bool> DeleteTaskAsync(string id)

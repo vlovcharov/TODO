@@ -70,6 +70,11 @@ export default function DayColumn({ date, allTasks, onUpdate, onDelete, onCreate
           <span className={`day-number ${isCurrentDay ? 'today-badge' : ''}`}>
             {format(date, 'd')}
           </span>
+          {dayTasks.length > 0 && (
+            <span className="day-task-counter">
+              {doneTasks.length}/{dayTasks.length}
+            </span>
+          )}
           {!compact && <span className="day-month">{format(date, 'MMM yyyy')}</span>}
         </div>
         <button

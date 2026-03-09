@@ -260,6 +260,17 @@
   color: var(--text-faint);
 }
 
+.day-task-counter {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 7px;
+  line-height: 1.4;
+}
+
 .day-tasks {
   padding: 10px;
   min-height: 80px;

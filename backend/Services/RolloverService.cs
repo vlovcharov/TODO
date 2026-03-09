@@ -43,13 +43,13 @@ public class RolloverService : BackgroundService
         {
             if (task.IsRecurring) continue;
             if (task.IsCompleted) continue;
-            if (task.ScheduledDate >= today) continue;  // uses [NotMapped] prop - fine in memory
+            if (task.ScheduledDate >= today) continue;
 
             var newDate = GetNextPeriodDate(task.Level, task.ScheduledDate, today);
             if (newDate != task.ScheduledDate)
             {
                 task.OriginalScheduledDate ??= task.ScheduledDate;
-                task.ScheduledDate = newDate;  // setter updates ScheduledDateStr
+                task.ScheduledDate = newDate;
                 task.RolloverCount++;
                 toUpdate.Add(task);
             }

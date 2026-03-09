@@ -124,6 +124,14 @@ export default function TaskCard({ task, allTasks, currentDate, onUpdate, onDele
             {isRecurring && (
               <span className="recurring-dot" title={recurLabel}>↻ {recurLabel}</span>
             )}
+            {subtasks.length > 0 && (() => {
+              const doneSubs = subtasks.filter(s => isCompletedOnDate(s, currentDate)).length;
+              return (
+                <span className={`subtask-progress ${doneSubs === subtasks.length ? 'all-done' : ''}`}>
+                  {doneSubs}/{subtasks.length}
+                </span>
+              );
+            })()}
           </span>
 
           <span className="priority-icon" style={{ color: priority.color }} title={priority.label}>

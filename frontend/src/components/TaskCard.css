@@ -114,6 +114,25 @@
   font-size: 12px;
 }
 
+.subtask-progress {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-faint);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1px 6px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.subtask-progress.all-done {
+  color: #16a34a;
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
 .rollover-tag {
   font-size: 10px;
   color: #f59e0b;
@@ -137,6 +156,10 @@
   gap: 2px;
   opacity: 0;
   transition: opacity var(--transition);
+  /* Fixed width = 4 buttons × (13px icon + 8px padding) to keep priority icon aligned */
+  width: 88px;
+  flex-shrink: 0;
+  justify-content: flex-end;
 }
 
 .task-actions.visible { opacity: 1; }

@@ -77,14 +77,12 @@ export function getViewRange(view, anchor) {
 }
 
 export function isCompletedOnDate(task, date) {
-  const mask = task.recurrenceMask ?? 0;
-  if (mask !== 0) {
-    const dateStr = formatDateParam(date);
-    return task.completedDates?.some(d =>
-      (typeof d === 'string' ? d : formatDateParam(new Date(d))).substring(0, 10) === dateStr
-    ) ?? false;
-  }
-  return task.isCompleted;
+  const dateStr = formatDateParam(date);
+  // All tasks now use completedDates (from TaskCompletions table)
+  // IsCompleted is just a cache — use completedDates for accuracy on any given date
+  return task.completedDates?.some(d =>
+    (typeof d === 'string' ? d : formatDateParam(new Date(d + 'T00:00:00'))).substring(0, 10) === dateStr
+  ) ?? false;
 }
 
 export function getNextPeriod(level, date) {

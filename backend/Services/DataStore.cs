@@ -20,7 +20,7 @@ public class DataStore
         await using var db = await _factory.CreateDbContextAsync();
         return await db.Tasks
             .Include(t => t.Subtasks)
-            .Include(t => t.RecurringCompletions)
+            .Include(t => t.TaskCompletions)
             .AsNoTracking()
             .ToListAsync();
     }
@@ -30,9 +30,20 @@ public class DataStore
         await using var db = await _factory.CreateDbContextAsync();
         return await db.Tasks
             .Include(t => t.Subtasks)
-            .Include(t => t.RecurringCompletions)
+            .Include(t => t.TaskCompletions)
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == id);
+    }
+
+    public async Task<List<TodoTask>> GetSubtasksAsync(string parentId)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.Tasks
+            .Include(t => t.Subtasks)
+            .Include(t => t.TaskCompletions)
+            .AsNoTracking()
+            .Where(t => t.ParentId == parentId)
+            .ToListAsync();
     }
 
     // ── Commands ──────────────────────────────────────────────────────────────
@@ -71,36 +82,42 @@ public class DataStore
         }
     }
 
-    // ── Recurring completions ─────────────────────────────────────────────────
+    // ── Task completions ──────────────────────────────────────────────────────
 
-    public async Task AddRecurringCompletionAsync(string taskId, DateOnly date)
+    public async Task AddCompletionAsync(string taskId, DateOnly date)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var dateStr = date.ToString("yyyy-MM-dd");
-        var already = await db.RecurringCompletions
-            .AnyAsync(r => r.TaskId == taskId && r.DateStr == dateStr);
+        var already = await db.TaskCompletions
+            .AnyAsync(r => r.TaskId == taskId && r.Date == date);
         if (!already)
         {
-            db.RecurringCompletions.Add(new RecurringCompletion
+            db.TaskCompletions.Add(new TaskCompletion
             {
-                TaskId = taskId,
-                DateStr = dateStr
+                TaskId      = taskId,
+                Date        = date,
+                CompletedAt = DateTime.UtcNow
             });
             await db.SaveChangesAsync();
         }
     }
 
-    public async Task RemoveRecurringCompletionAsync(string taskId, DateOnly date)
+    public async Task RemoveCompletionAsync(string taskId, DateOnly date)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var dateStr = date.ToString("yyyy-MM-dd");
-        var row = await db.RecurringCompletions
-            .FirstOrDefaultAsync(r => r.TaskId == taskId && r.DateStr == dateStr);
+        var row = await db.TaskCompletions
+            .FirstOrDefaultAsync(r => r.TaskId == taskId && r.Date == date);
         if (row != null)
         {
-            db.RecurringCompletions.Remove(row);
+            db.TaskCompletions.Remove(row);
             await db.SaveChangesAsync();
         }
+    }
+
+    public async Task<bool> IsCompletedOnDateAsync(string taskId, DateOnly date)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.TaskCompletions
+            .AnyAsync(r => r.TaskId == taskId && r.Date == date);
     }
 
     // ── App metadata ──────────────────────────────────────────────────────────
@@ -144,25 +161,13 @@ public class DataStore
         await db.SaveChangesAsync();
     }
 
-    public async Task<List<TodoTask>> GetSubtasksAsync(string parentId)
-    {
-        await using var db = await _factory.CreateDbContextAsync();
-        return await db.Tasks
-            .Include(t => t.Subtasks)
-            .Include(t => t.RecurringCompletions)
-            .AsNoTracking()
-            .Where(t => t.ParentId == parentId)
-            .ToListAsync();
-    }
-
     // ── Sort order helper ─────────────────────────────────────────────────────
 
     public async Task<int> GetNextSortOrderAsync(DateOnly date)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var dateStr = date.ToString("yyyy-MM-dd");
         var max = await db.Tasks
-            .Where(t => t.ScheduledDateStr == dateStr)
+            .Where(t => t.ScheduledDate == date)
             .Select(t => (int?)t.SortOrder)
             .MaxAsync();
         return (max ?? -1) + 1;
