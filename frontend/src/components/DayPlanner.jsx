@@ -120,7 +120,7 @@ export default function DayPlanner({ date, tasks }) {
 
     const y            = getYInGrid(e.clientY);
     const startMinutes = snapToSlot(yToMinutes(y));
-    const endMinutes   = Math.min(END_HOUR * 60, startMinutes + 60);
+    const endMinutes   = Math.min(END_HOUR * 60, startMinutes + 30);
 
     const block = await scheduleApi.create({
       date: dateStr, taskId: taskId || null, label,
@@ -142,7 +142,7 @@ export default function DayPlanner({ date, tasks }) {
     const block = await scheduleApi.create({
       date: dateStr, taskId: null, label: freeformLabel.trim(),
       startMinutes: freeformSlot,
-      endMinutes: Math.min(END_HOUR * 60, freeformSlot + 60),
+      endMinutes: Math.min(END_HOUR * 60, freeformSlot + 30),
     });
     setBlocks(prev => [...prev, block]);
     setSlot(null);

@@ -706,10 +706,10 @@
 /* ── Day View layout: epics | tasks | planner ── */
 .view-day {
   display: grid;
-  grid-template-columns: 280px 1fr 520px;
+  grid-template-columns: 380px 1fr 520px;
   gap: 12px;
   align-items: start;
-  max-width: 1600px;
+  max-width: 1700px;
   margin: 0 auto;
 }
 
