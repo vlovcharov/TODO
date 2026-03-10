@@ -96,11 +96,8 @@ public class ConfigController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetConfig()
-    {
-        var config = await _store.GetConfigAsync();
-        return Ok(config);
-    }
+    public async Task<IActionResult> GetConfig() =>
+        Ok(await _store.GetConfigAsync());
 
     [HttpPut]
     public async Task<IActionResult> UpdateConfig([FromBody] TaskLevelConfig config)
@@ -270,3 +267,103 @@ public class BackupController : ControllerBase
         return result;
     }
 }
+
+
+[ApiController]
+[Route("api/[controller]")]
+public class EpicsController : ControllerBase
+{
+    private readonly DataStore _store;
+    public EpicsController(DataStore store) { _store = store; }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll() =>
+        Ok(await _store.GetEpicsAsync());
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] EpicRequest req)
+    {
+        var epic = new TodoApp.Models.Epic { Title = req.Title, Color = req.Color };
+        await _store.SaveEpicAsync(epic);
+        return CreatedAtAction(nameof(GetAll), new { id = epic.Id }, epic);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, [FromBody] EpicRequest req)
+    {
+        var epic = await _store.GetEpicAsync(id);
+        if (epic == null) return NotFound();
+        epic.Title = req.Title;
+        epic.Color = req.Color;
+        await _store.SaveEpicAsync(epic);
+        return Ok(epic);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id)
+    {
+        await _store.DeleteEpicAsync(id);
+        return NoContent();
+    }
+}
+
+public record EpicRequest(string Title, string Color);
+
+[ApiController]
+[Route("api/schedule")]
+public class DayScheduleController : ControllerBase
+{
+    private readonly DataStore _store;
+    public DayScheduleController(DataStore store) { _store = store; }
+
+    [HttpGet]
+    public async Task<IActionResult> GetForDate([FromQuery] string date)
+    {
+        if (!DateOnly.TryParse(date, out var d)) return BadRequest("Invalid date");
+        return Ok(await _store.GetScheduleAsync(d));
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] ScheduleBlockRequest req)
+    {
+        if (!DateOnly.TryParse(req.Date, out var d)) return BadRequest("Invalid date");
+        var block = new TodoApp.Models.DayScheduleBlock
+        {
+            Date         = d,
+            TaskId       = req.TaskId,
+            Label        = req.Label,
+            StartMinutes = req.StartMinutes,
+            EndMinutes   = req.EndMinutes,
+        };
+        await _store.SaveBlockAsync(block);
+        return CreatedAtAction(nameof(GetForDate), new { date = req.Date }, block);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, [FromBody] ScheduleBlockRequest req)
+    {
+        var block = await _store.GetBlockAsync(id);
+        if (block == null) return NotFound();
+        block.Label        = req.Label;
+        block.StartMinutes = req.StartMinutes;
+        block.EndMinutes   = req.EndMinutes;
+        block.TaskId       = req.TaskId;
+        await _store.SaveBlockAsync(block);
+        return Ok(block);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id)
+    {
+        await _store.DeleteBlockAsync(id);
+        return NoContent();
+    }
+}
+
+public record ScheduleBlockRequest(
+    string Date,
+    string? TaskId,
+    string Label,
+    int StartMinutes,
+    int EndMinutes
+);

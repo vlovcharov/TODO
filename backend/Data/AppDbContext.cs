@@ -7,9 +7,11 @@ public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-    public DbSet<TodoTask> Tasks => Set<TodoTask>();
-    public DbSet<TaskCompletion> TaskCompletions => Set<TaskCompletion>();
-    public DbSet<AppMeta> AppMeta => Set<AppMeta>();
+    public DbSet<Epic>             Epics             => Set<Epic>();
+    public DbSet<TodoTask>         Tasks             => Set<TodoTask>();
+    public DbSet<TaskCompletion>   TaskCompletions   => Set<TaskCompletion>();
+    public DbSet<DayScheduleBlock> DayScheduleBlocks => Set<DayScheduleBlock>();
+    public DbSet<AppMeta>          AppMeta           => Set<AppMeta>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -18,10 +20,15 @@ public class AppDbContext : DbContext
             e.Property(t => t.Level).HasConversion<string>();
             e.Property(t => t.Priority).HasConversion<string>();
 
-            e.HasMany(t => t.Subtasks)
-             .WithOne(t => t.Parent)
+            e.HasOne(t => t.Parent)
+             .WithMany(t => t.Subtasks)
              .HasForeignKey(t => t.ParentId)
              .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(t => t.Epic)
+             .WithMany(ep => ep.Tasks)
+             .HasForeignKey(t => t.EpicId)
+             .OnDelete(DeleteBehavior.SetNull);
 
             e.HasMany(t => t.TaskCompletions)
              .WithOne(r => r.Task)
@@ -32,6 +39,16 @@ public class AppDbContext : DbContext
         b.Entity<TaskCompletion>(e =>
         {
             e.HasIndex(r => new { r.TaskId, r.Date }).IsUnique();
+        });
+
+        b.Entity<DayScheduleBlock>(e =>
+        {
+            e.HasOne(d => d.Task)
+             .WithMany()
+             .HasForeignKey(d => d.TaskId)
+             .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(d => d.Date);
         });
     }
 }

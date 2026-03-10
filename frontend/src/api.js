@@ -29,3 +29,17 @@ export const backupApi = {
     }).then(r => r.data);
   },
 };
+
+export const epicsApi = {
+  getAll:  ()           => api.get('/epics').then(r => r.data),
+  create:  (data)       => api.post('/epics', data).then(r => r.data),
+  update:  (id, data)   => api.put(`/epics/${id}`, data).then(r => r.data),
+  delete:  (id)         => api.delete(`/epics/${id}`),
+};
+
+export const scheduleApi = {
+  getForDate: (date)      => api.get('/schedule', { params: { date } }).then(r => r.data),
+  create:     (data)      => api.post('/schedule', data).then(r => r.data),
+  update:     (id, data)  => api.put(`/schedule/${id}`, data).then(r => r.data),
+  delete:     (id)        => api.delete(`/schedule/${id}`),
+};

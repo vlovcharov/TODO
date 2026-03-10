@@ -28,38 +28,60 @@ public class RolloverService : BackgroundService
         using var scope = _services.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<DataStore>();
 
-        var meta = await store.GetMetaAsync();
-        var now = DateTime.UtcNow;
+        var meta  = await store.GetMetaAsync();
+        var now   = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(now);
 
         if (meta.LastRolloverCheck.Date >= now.Date) return;
 
         _logger.LogInformation("Running daily rollover for {Date}", today);
 
-        var tasks = await store.GetTasksAsync();
+        var tasks    = await store.GetTasksAsync();
         var toUpdate = new List<TodoTask>();
+        var toAdd    = new List<TodoTask>();
 
         foreach (var task in tasks)
         {
-            if (task.IsRecurring) continue;
-            if (task.IsCompleted) continue;
+            // Skip recurring, already completed, already a missed copy, subtasks
+            if (task.IsRecurring)    continue;
+            if (task.IsCompleted)    continue;
+            if (task.IsMissed)       continue;
+            if (task.ParentId != null) continue;
             if (task.ScheduledDate >= today) continue;
 
             var newDate = GetNextPeriodDate(task.Level, task.ScheduledDate, today);
-            if (newDate != task.ScheduledDate)
+            if (newDate == task.ScheduledDate) continue;
+
+            // Mark original as missed (stays on its original date in history)
+            task.IsMissed = true;
+            toUpdate.Add(task);
+
+            // Create a copy on the new date
+            var copy = new TodoTask
             {
-                task.OriginalScheduledDate ??= task.ScheduledDate;
-                task.ScheduledDate = newDate;
-                task.RolloverCount++;
-                toUpdate.Add(task);
-            }
+                Title                = task.Title,
+                Description          = task.Description,
+                Level                = task.Level,
+                Priority             = task.Priority,
+                ScheduledDate        = newDate,
+                OriginalScheduledDate = task.OriginalScheduledDate ?? task.ScheduledDate,
+                RolloverCount        = task.RolloverCount + 1,
+                SortOrder            = task.SortOrder,
+                RecurrenceMask       = task.RecurrenceMask,
+                EpicId               = task.EpicId,
+                // ParentId intentionally not copied — top-level only
+            };
+            toAdd.Add(copy);
         }
 
         if (toUpdate.Count > 0)
-        {
             await store.SaveTasksAsync(toUpdate);
-            _logger.LogInformation("Rolled over {Count} tasks", toUpdate.Count);
-        }
+
+        foreach (var copy in toAdd)
+            await store.SaveTaskAsync(copy);
+
+        if (toUpdate.Count > 0)
+            _logger.LogInformation("Rolled over {Count} tasks (copy+missed)", toUpdate.Count);
 
         await store.UpdateLastRolloverAsync(now);
     }

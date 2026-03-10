@@ -35,10 +35,10 @@ public class TaskService
             ScheduledDate  = req.ScheduledDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date),
             RecurrenceMask = req.RecurrenceMask,
             ParentId       = req.ParentId,
+            EpicId         = req.EpicId,
             SortOrder      = await _store.GetNextSortOrderAsync(
                                  req.ScheduledDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date))
         };
-
         await _store.SaveTaskAsync(task);
         return await _store.GetTaskAsync(task.Id) ?? task;
     }
@@ -48,24 +48,19 @@ public class TaskService
         var task = await _store.GetTaskAsync(id);
         if (task == null) return null;
 
-        if (req.Title != null) task.Title = req.Title;
-        if (req.Description != null) task.Description = req.Description == "" ? null : req.Description;
-        if (req.Level.HasValue) task.Level = req.Level.Value;
-        if (req.Priority.HasValue) task.Priority = req.Priority.Value;
+        if (req.Title != null)         task.Title         = req.Title;
+        if (req.Description != null)   task.Description   = req.Description == "" ? null : req.Description;
+        if (req.Level.HasValue)        task.Level         = req.Level.Value;
+        if (req.Priority.HasValue)     task.Priority      = req.Priority.Value;
         if (req.ScheduledDate.HasValue) task.ScheduledDate = req.ScheduledDate.Value;
-        if (req.SortOrder.HasValue) task.SortOrder = req.SortOrder.Value;
+        if (req.SortOrder.HasValue)    task.SortOrder     = req.SortOrder.Value;
         if (req.RecurrenceMask.HasValue) task.RecurrenceMask = req.RecurrenceMask.Value;
+        if (req.EpicId != null)        task.EpicId        = req.EpicId == "" ? null : req.EpicId;
 
         await _store.SaveTaskAsync(task);
         return await _store.GetTaskAsync(id);
     }
 
-    /// <summary>
-    /// Toggle completion for a task on a given date.
-    /// All completions go through TaskCompletions table.
-    /// IsCompleted is kept as a denormalised cache.
-    /// Toggling a subtask bubbles up to sync the parent's completion state.
-    /// </summary>
     public async Task<List<TodoTask>> ToggleCompleteAsync(string id, DateOnly? date = null)
     {
         var checkDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
@@ -77,20 +72,16 @@ public class TaskService
         if (isNowCompleted)
         {
             await _store.AddCompletionAsync(id, checkDate);
-            // Auto-complete all subtasks for this day too
             await CompleteSubtasksForDateAsync(id, checkDate, true);
         }
         else
         {
             await _store.RemoveCompletionAsync(id, checkDate);
-            // Uncheck subtasks as well
             await CompleteSubtasksForDateAsync(id, checkDate, false);
         }
 
-        // Update IsCompleted cache on the task itself
         await UpdateIsCompletedCacheAsync(id, checkDate);
 
-        // Bubble up to parent
         if (task.ParentId != null)
             await SyncParentCompletionAsync(task.ParentId, checkDate);
 
@@ -102,11 +93,8 @@ public class TaskService
         var subtasks = await _store.GetSubtasksAsync(parentId);
         foreach (var sub in subtasks)
         {
-            if (complete)
-                await _store.AddCompletionAsync(sub.Id, date);
-            else
-                await _store.RemoveCompletionAsync(sub.Id, date);
-
+            if (complete) await _store.AddCompletionAsync(sub.Id, date);
+            else          await _store.RemoveCompletionAsync(sub.Id, date);
             await UpdateIsCompletedCacheAsync(sub.Id, date);
             await CompleteSubtasksForDateAsync(sub.Id, date, complete);
         }
@@ -116,12 +104,8 @@ public class TaskService
     {
         var task = await _store.GetTaskAsync(taskId);
         if (task == null) return;
-
-        // For non-recurring tasks, IsCompleted = completed on their scheduled date
-        // For recurring tasks, IsCompleted = completed today
         var relevantDate = task.IsRecurring ? DateOnly.FromDateTime(DateTime.UtcNow.Date) : task.ScheduledDate;
         var done = await _store.IsCompletedOnDateAsync(taskId, relevantDate);
-
         if (task.IsCompleted != done)
         {
             task.IsCompleted = done;
@@ -133,17 +117,12 @@ public class TaskService
     {
         var parent   = await _store.GetTaskAsync(parentId);
         if (parent == null) return;
-
         var subtasks = await _store.GetSubtasksAsync(parentId);
         if (subtasks.Count == 0) return;
 
-        // Parent is complete when ALL direct subtasks are complete on this date
         var allDone = true;
         foreach (var sub in subtasks)
-        {
-            if (!await _store.IsCompletedOnDateAsync(sub.Id, date))
-            { allDone = false; break; }
-        }
+            if (!await _store.IsCompletedOnDateAsync(sub.Id, date)) { allDone = false; break; }
 
         var currentlyDone = await _store.IsCompletedOnDateAsync(parentId, date);
         if (currentlyDone != allDone)
@@ -169,10 +148,8 @@ public class TaskService
     {
         var task = await _store.GetTaskAsync(id);
         if (task == null) return null;
-
         task.ScheduledDate = req.NewDate;
         if (req.NewSortOrder.HasValue) task.SortOrder = req.NewSortOrder.Value;
-
         await _store.SaveTaskAsync(task);
         return await _store.GetTaskAsync(id);
     }
@@ -181,13 +158,11 @@ public class TaskService
     {
         var tasks    = await _store.GetTasksAsync();
         var toUpdate = new List<TodoTask>();
-
         for (int i = 0; i < req.TaskIds.Count; i++)
         {
             var task = tasks.FirstOrDefault(t => t.Id == req.TaskIds[i]);
             if (task != null) { task.SortOrder = i; toUpdate.Add(task); }
         }
-
         await _store.SaveTasksAsync(toUpdate);
     }
 }
@@ -201,7 +176,8 @@ public record CreateTaskRequest(
     TaskPriority Priority,
     DateOnly? ScheduledDate,
     int RecurrenceMask,
-    string? ParentId
+    string? ParentId,
+    string? EpicId
 );
 
 public record UpdateTaskRequest(
@@ -211,7 +187,8 @@ public record UpdateTaskRequest(
     TaskPriority? Priority,
     DateOnly? ScheduledDate,
     int? SortOrder,
-    int? RecurrenceMask
+    int? RecurrenceMask,
+    string? EpicId
 );
 
 public record MoveTaskRequest(DateOnly NewDate, int? NewSortOrder);

@@ -13,7 +13,7 @@ public class DataStore
         _factory = factory;
     }
 
-    // ── Queries ───────────────────────────────────────────────────────────────
+    // ── Tasks ─────────────────────────────────────────────────────────────────
 
     public async Task<List<TodoTask>> GetTasksAsync()
     {
@@ -46,8 +46,6 @@ public class DataStore
             .ToListAsync();
     }
 
-    // ── Commands ──────────────────────────────────────────────────────────────
-
     public async Task SaveTaskAsync(TodoTask task)
     {
         await using var db = await _factory.CreateDbContextAsync();
@@ -75,28 +73,18 @@ public class DataStore
     {
         await using var db = await _factory.CreateDbContextAsync();
         var task = await db.Tasks.FindAsync(id);
-        if (task != null)
-        {
-            db.Tasks.Remove(task);
-            await db.SaveChangesAsync();
-        }
+        if (task != null) { db.Tasks.Remove(task); await db.SaveChangesAsync(); }
     }
 
-    // ── Task completions ──────────────────────────────────────────────────────
+    // ── Completions ───────────────────────────────────────────────────────────
 
     public async Task AddCompletionAsync(string taskId, DateOnly date)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var already = await db.TaskCompletions
-            .AnyAsync(r => r.TaskId == taskId && r.Date == date);
+        var already = await db.TaskCompletions.AnyAsync(r => r.TaskId == taskId && r.Date == date);
         if (!already)
         {
-            db.TaskCompletions.Add(new TaskCompletion
-            {
-                TaskId      = taskId,
-                Date        = date,
-                CompletedAt = DateTime.UtcNow
-            });
+            db.TaskCompletions.Add(new TaskCompletion { TaskId = taskId, Date = date, CompletedAt = DateTime.UtcNow });
             await db.SaveChangesAsync();
         }
     }
@@ -104,20 +92,78 @@ public class DataStore
     public async Task RemoveCompletionAsync(string taskId, DateOnly date)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var row = await db.TaskCompletions
-            .FirstOrDefaultAsync(r => r.TaskId == taskId && r.Date == date);
-        if (row != null)
-        {
-            db.TaskCompletions.Remove(row);
-            await db.SaveChangesAsync();
-        }
+        var row = await db.TaskCompletions.FirstOrDefaultAsync(r => r.TaskId == taskId && r.Date == date);
+        if (row != null) { db.TaskCompletions.Remove(row); await db.SaveChangesAsync(); }
     }
 
     public async Task<bool> IsCompletedOnDateAsync(string taskId, DateOnly date)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        return await db.TaskCompletions
-            .AnyAsync(r => r.TaskId == taskId && r.Date == date);
+        return await db.TaskCompletions.AnyAsync(r => r.TaskId == taskId && r.Date == date);
+    }
+
+    // ── Epics ─────────────────────────────────────────────────────────────────
+
+    public async Task<List<Epic>> GetEpicsAsync()
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.Epics.AsNoTracking().ToListAsync();
+    }
+
+    public async Task<Epic?> GetEpicAsync(string id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.Epics.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id);
+    }
+
+    public async Task SaveEpicAsync(Epic epic)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var exists = await db.Epics.AnyAsync(e => e.Id == epic.Id);
+        if (exists) db.Epics.Update(epic);
+        else db.Epics.Add(epic);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task DeleteEpicAsync(string id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var epic = await db.Epics.FindAsync(id);
+        if (epic != null) { db.Epics.Remove(epic); await db.SaveChangesAsync(); }
+    }
+
+    // ── Day Schedule ──────────────────────────────────────────────────────────
+
+    public async Task<List<DayScheduleBlock>> GetScheduleAsync(DateOnly date)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.DayScheduleBlocks
+            .Where(b => b.Date == date)
+            .AsNoTracking()
+            .OrderBy(b => b.StartMinutes)
+            .ToListAsync();
+    }
+
+    public async Task<DayScheduleBlock?> GetBlockAsync(string id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.DayScheduleBlocks.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id);
+    }
+
+    public async Task SaveBlockAsync(DayScheduleBlock block)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var exists = await db.DayScheduleBlocks.AnyAsync(b => b.Id == block.Id);
+        if (exists) db.DayScheduleBlocks.Update(block);
+        else db.DayScheduleBlocks.Add(block);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task DeleteBlockAsync(string id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var block = await db.DayScheduleBlocks.FindAsync(id);
+        if (block != null) { db.DayScheduleBlocks.Remove(block); await db.SaveChangesAsync(); }
     }
 
     // ── App metadata ──────────────────────────────────────────────────────────
@@ -141,11 +187,10 @@ public class DataStore
         var meta = await GetMetaAsync();
         return new TaskLevelConfig
         {
-            ShowLifeGoal = meta.ShowLifeGoal,
-            ShowYearly   = meta.ShowYearly,
-            ShowMonthly  = meta.ShowMonthly,
-            ShowWeekly   = meta.ShowWeekly,
-            ShowDaily    = meta.ShowDaily,
+            ShowYearly  = meta.ShowYearly,
+            ShowMonthly = meta.ShowMonthly,
+            ShowWeekly  = meta.ShowWeekly,
+            ShowDaily   = meta.ShowDaily,
         };
     }
 
@@ -153,15 +198,12 @@ public class DataStore
     {
         await using var db = await _factory.CreateDbContextAsync();
         var meta = await db.AppMeta.FirstAsync(m => m.Id == 1);
-        meta.ShowLifeGoal = config.ShowLifeGoal;
-        meta.ShowYearly   = config.ShowYearly;
-        meta.ShowMonthly  = config.ShowMonthly;
-        meta.ShowWeekly   = config.ShowWeekly;
-        meta.ShowDaily    = config.ShowDaily;
+        meta.ShowYearly  = config.ShowYearly;
+        meta.ShowMonthly = config.ShowMonthly;
+        meta.ShowWeekly  = config.ShowWeekly;
+        meta.ShowDaily   = config.ShowDaily;
         await db.SaveChangesAsync();
     }
-
-    // ── Sort order helper ─────────────────────────────────────────────────────
 
     public async Task<int> GetNextSortOrderAsync(DateOnly date)
     {

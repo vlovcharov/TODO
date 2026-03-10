@@ -5,14 +5,11 @@ using System.Text.Json.Serialization;
 namespace TodoApp.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum TaskLevel { Daily, Weekly, Monthly, Yearly, LifeGoal }
+public enum TaskLevel { Daily, Weekly, Monthly, Yearly }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum TaskPriority { Low, Average, High }
 
-/// <summary>
-/// Weekday bitmask — bit 0 = Monday, bit 1 = Tuesday, ... bit 6 = Sunday.
-/// </summary>
 public static class RecurrenceDays
 {
     public const int None        = 0;
@@ -44,6 +41,23 @@ public static class RecurrenceDays
     }
 }
 
+public class Epic
+{
+    [Key]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    [Required]
+    public string Title { get; set; } = "";
+
+    /// <summary>Hex color e.g. "#6366f1"</summary>
+    public string Color { get; set; } = "#6366f1";
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [JsonIgnore]
+    public ICollection<TodoTask> Tasks { get; set; } = new List<TodoTask>();
+}
+
 public class TodoTask
 {
     [Key]
@@ -56,13 +70,12 @@ public class TodoTask
     public TaskLevel Level { get; set; } = TaskLevel.Daily;
     public TaskPriority Priority { get; set; } = TaskPriority.Average;
 
-    /// <summary>
-    /// Denormalised cache — true if completed today (or ever, for non-recurring one-offs).
-    /// Source of truth is TaskCompletions table.
-    /// </summary>
+    /// <summary>Denormalised cache — source of truth is TaskCompletions.</summary>
     public bool IsCompleted { get; set; } = false;
 
-    // Proper Postgres date columns (no string workarounds needed)
+    /// <summary>True when this is a rollover copy whose original was not done on its day.</summary>
+    public bool IsMissed { get; set; } = false;
+
     public DateOnly ScheduledDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow.Date);
     public DateOnly? OriginalScheduledDate { get; set; }
 
@@ -87,10 +100,16 @@ public class TodoTask
     [JsonIgnore]
     public bool IsRecurring => RecurrenceMask != RecurrenceDays.None;
 
+    /// <summary>Optional link to an Epic.</summary>
+    public string? EpicId { get; set; }
+
+    [ForeignKey(nameof(EpicId))]
+    [JsonIgnore]
+    public Epic? Epic { get; set; }
+
     [JsonIgnore]
     public ICollection<TaskCompletion> TaskCompletions { get; set; } = new List<TaskCompletion>();
 
-    /// <summary>List of dates this task was completed, sent to frontend.</summary>
     [NotMapped]
     public List<DateOnly> CompletedDates => TaskCompletions.Select(r => r.Date).ToList();
 
@@ -110,11 +129,32 @@ public class TaskCompletion
     [JsonIgnore]
     public TodoTask? Task { get; set; }
 
-    /// <summary>Which day this completion belongs to (for day-based queries).</summary>
+    public DateOnly Date { get; set; }
+    public DateTime CompletedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class DayScheduleBlock
+{
+    [Key]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
     public DateOnly Date { get; set; }
 
-    /// <summary>Exact moment the task was completed.</summary>
-    public DateTime CompletedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Optional link to a task. Null for freeform blocks.</summary>
+    public string? TaskId { get; set; }
+
+    [ForeignKey(nameof(TaskId))]
+    [JsonIgnore]
+    public TodoTask? Task { get; set; }
+
+    /// <summary>Display label — defaults to task title if linked, otherwise freeform text.</summary>
+    public string Label { get; set; } = "";
+
+    /// <summary>Minutes from midnight, e.g. 540 = 09:00.</summary>
+    public int StartMinutes { get; set; }
+
+    /// <summary>Minutes from midnight, e.g. 600 = 10:00.</summary>
+    public int EndMinutes { get; set; }
 }
 
 public class AppMeta
@@ -122,18 +162,16 @@ public class AppMeta
     [Key]
     public int Id { get; set; } = 1;
     public DateTime LastRolloverCheck { get; set; } = DateTime.UtcNow;
-    public bool ShowLifeGoal { get; set; } = true;
-    public bool ShowYearly { get; set; } = true;
+    public bool ShowYearly  { get; set; } = true;
     public bool ShowMonthly { get; set; } = true;
-    public bool ShowWeekly { get; set; } = true;
-    public bool ShowDaily { get; set; } = true;
+    public bool ShowWeekly  { get; set; } = true;
+    public bool ShowDaily   { get; set; } = true;
 }
 
 public class TaskLevelConfig
 {
-    public bool ShowLifeGoal { get; set; } = true;
-    public bool ShowYearly   { get; set; } = true;
-    public bool ShowMonthly  { get; set; } = true;
-    public bool ShowWeekly   { get; set; } = true;
-    public bool ShowDaily    { get; set; } = true;
+    public bool ShowYearly  { get; set; } = true;
+    public bool ShowMonthly { get; set; } = true;
+    public bool ShowWeekly  { get; set; } = true;
+    public bool ShowDaily   { get; set; } = true;
 }

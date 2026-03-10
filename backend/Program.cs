@@ -68,7 +68,7 @@ using (var scope = app.Services.CreateScope())
 
     if (!db.AppMeta.Any())
     {
-        db.AppMeta.Add(new AppMeta { Id = 1 });
+        db.AppMeta.Add(new AppMeta { Id = 1, LastRolloverCheck = DateTime.UtcNow });
         db.SaveChanges();
     }
 }
