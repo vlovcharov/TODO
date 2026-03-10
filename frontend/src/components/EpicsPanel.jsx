@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, X, Check } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { epicsApi } from '../api';
 import { isCompletedOnDate, formatDateParam } from '../constants';
 
@@ -57,6 +57,7 @@ function EpicForm({ epic, onSave, onCancel }) {
 export default function EpicsPanel({ epics, tasks, currentDate, onEpicsChange, onTasksChange }) {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   const dateStr = formatDateParam(currentDate);
 
@@ -81,93 +82,101 @@ export default function EpicsPanel({ epics, tasks, currentDate, onEpicsChange, o
 
   return (
     <div className="epics-panel">
-      <div className="epics-panel-header">
+      <div className="panel-header" onClick={() => setCollapsed(c => !c)} style={{ cursor: 'pointer' }}>
         <span className="epics-panel-title">Epics</span>
-        <button
-          className="add-task-btn"
-          onClick={() => setCreating(true)}
-          title="New epic"
-        >
-          <Plus size={14} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {!collapsed && (
+            <button
+              className="add-task-btn"
+              onClick={e => { e.stopPropagation(); setCreating(true); setCollapsed(false); }}
+              title="New epic"
+            >
+              <Plus size={14} />
+            </button>
+          )}
+          {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+        </div>
       </div>
 
-      {creating && (
-        <EpicForm
-          onSave={handleCreate}
-          onCancel={() => setCreating(false)}
-        />
-      )}
+      {!collapsed && (
+        <>
+          {creating && (
+            <EpicForm
+              onSave={handleCreate}
+              onCancel={() => setCreating(false)}
+            />
+          )}
 
-      {epics.length === 0 && !creating && (
-        <div className="epics-empty">No epics yet</div>
-      )}
+          {epics.length === 0 && !creating && (
+            <div className="epics-empty">No epics yet</div>
+          )}
 
-      {epics.map(epic => {
-        const epicTasks = tasks.filter(t => t.epicId === epic.id && !t.parentId);
-        const doneTasks = epicTasks.filter(t => isCompletedOnDate(t, currentDate));
+          {epics.map(epic => {
+            const epicTasks = tasks.filter(t => t.epicId === epic.id && !t.parentId);
+            const doneTasks = epicTasks.filter(t => isCompletedOnDate(t, currentDate));
 
-        return (
-          <div key={epic.id} className="epic-card" style={{ '--epic-color': epic.color }}>
-            {editingId === epic.id ? (
-              <EpicForm
-                epic={epic}
-                onSave={data => handleUpdate(epic.id, data)}
-                onCancel={() => setEditingId(null)}
-              />
-            ) : (
-              <>
-                <div className="epic-card-header">
-                  <div className="epic-color-dot" style={{ background: epic.color }} />
-                  <span className="epic-card-title">{epic.title}</span>
-                  <span className="epic-card-count">
-                    {doneTasks.length}/{epicTasks.length}
-                  </span>
-                  <div className="epic-card-actions">
-                    <button className="action-btn" onClick={() => setEditingId(epic.id)} title="Edit">
-                      <Pencil size={12} />
-                    </button>
-                    <button className="action-btn danger" onClick={() => handleDelete(epic.id)} title="Delete">
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
+            return (
+              <div key={epic.id} className="epic-card" style={{ '--epic-color': epic.color }}>
+                {editingId === epic.id ? (
+                  <EpicForm
+                    epic={epic}
+                    onSave={data => handleUpdate(epic.id, data)}
+                    onCancel={() => setEditingId(null)}
+                  />
+                ) : (
+                  <>
+                    <div className="epic-card-header">
+                      <div className="epic-color-dot" style={{ background: epic.color }} />
+                      <span className="epic-card-title">{epic.title}</span>
+                      <span className="epic-card-count">
+                        {doneTasks.length}/{epicTasks.length}
+                      </span>
+                      <div className="epic-card-actions">
+                        <button className="action-btn" onClick={() => setEditingId(epic.id)} title="Edit">
+                          <Pencil size={12} />
+                        </button>
+                        <button className="action-btn danger" onClick={() => handleDelete(epic.id)} title="Delete">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
 
-                {epicTasks.length > 0 && (
-                  <div className="epic-task-list">
-                    {epicTasks.map(t => {
-                      const done = isCompletedOnDate(t, currentDate);
-                      return (
+                    {epicTasks.length > 0 && (
+                      <div className="epic-task-list">
+                        {epicTasks.map(t => {
+                          const done = isCompletedOnDate(t, currentDate);
+                          return (
+                            <div
+                              key={t.id}
+                              className={`epic-task-pill ${done ? 'done' : ''}`}
+                              style={{ borderLeftColor: epic.color }}
+                            >
+                              <span className={done ? 'completed' : ''}>{t.title}</span>
+                              {done && <Check size={11} style={{ color: epic.color, flexShrink: 0 }} />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {epicTasks.length > 0 && (
+                      <div className="epic-progress-bar">
                         <div
-                          key={t.id}
-                          className={`epic-task-pill ${done ? 'done' : ''}`}
-                          style={{ borderLeftColor: epic.color }}
-                        >
-                          <span className={done ? 'completed' : ''}>{t.title}</span>
-                          {done && <Check size={11} style={{ color: epic.color, flexShrink: 0 }} />}
-                        </div>
-                      );
-                    })}
-                  </div>
+                          className="epic-progress-fill"
+                          style={{
+                            width: `${(doneTasks.length / epicTasks.length) * 100}%`,
+                            background: epic.color,
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
-
-                {/* Progress bar */}
-                {epicTasks.length > 0 && (
-                  <div className="epic-progress-bar">
-                    <div
-                      className="epic-progress-fill"
-                      style={{
-                        width: `${(doneTasks.length / epicTasks.length) * 100}%`,
-                        background: epic.color,
-                      }}
-                    />
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        );
-      })}
+              </div>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }

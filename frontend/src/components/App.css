@@ -703,14 +703,30 @@
   border-color: var(--accent);
 }
 
-/* ── Day View three-column layout ── */
+/* ── Day View layout: epics | tasks | planner ── */
 .view-day {
   display: grid;
-  grid-template-columns: 1fr 240px 240px;
+  grid-template-columns: 280px 1fr 520px;
   gap: 12px;
   align-items: start;
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
+}
+
+/* ── Shared panel header (epics + planner) ── */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  user-select: none;
+}
+
+.panel-header:hover {
+  background: var(--surface2);
+  filter: brightness(1.05);
 }
 
 /* ── Missed section ── */
@@ -934,14 +950,14 @@
 .planner-inner {
   display: flex;
   position: relative;
-  padding: 0 8px 0 44px;
+  padding: 0 8px 8px 48px;
 }
 
 .planner-times {
   position: absolute;
   left: 0;
   top: 0;
-  width: 40px;
+  width: 44px;
 }
 
 .planner-time-label {
@@ -952,6 +968,7 @@
   font-family: var(--font-mono);
   transform: translateY(-50%);
   line-height: 1;
+  white-space: nowrap;
 }
 
 .planner-grid {
@@ -1041,7 +1058,7 @@
 .schedule-block-delete {
   position: absolute;
   top: 3px;
-  right: 22px;
+  right: 6px;
   opacity: 0;
   color: var(--text-muted);
   transition: opacity var(--transition);
@@ -1064,38 +1081,3 @@
 }
 
 .schedule-block:hover .schedule-block-resize { opacity: 1; }
-
-.planner-task-source {
-  border-top: 1px solid var(--border);
-  padding: 8px;
-  max-height: 140px;
-  overflow-y: auto;
-  background: var(--surface2);
-}
-
-.planner-task-source-title {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-faint);
-  margin-bottom: 5px;
-}
-
-.planner-task-pill {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 6px;
-  font-size: 11.5px;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-bottom: 3px;
-  cursor: grab;
-  background: var(--surface);
-  transition: background var(--transition);
-}
-
-.planner-task-pill:hover { background: var(--accent-light); color: var(--accent); }
-.planner-pill-grip { color: var(--text-faint); flex-shrink: 0; }

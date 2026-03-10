@@ -96,7 +96,14 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], onUp
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
-        <div className="task-row">
+        <div className="task-row"
+          draggable
+          onDragStart={e => {
+            e.dataTransfer.setData('text/task-id', task.id);
+            e.dataTransfer.setData('text/task-title', task.title);
+            e.stopPropagation();
+          }}
+        >
           <div className="drag-handle" {...attributes} {...listeners}>
             <GripVertical size={14} />
           </div>

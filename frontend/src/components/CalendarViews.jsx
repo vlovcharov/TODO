@@ -9,6 +9,13 @@ import { tasksApi } from '../api';
 export function DayView({ anchor, tasks, epics, onUpdate, onDelete, onCreate, onEpicsChange }) {
   return (
     <div className="view-day">
+      <EpicsPanel
+        epics={epics}
+        tasks={tasks}
+        currentDate={anchor}
+        onEpicsChange={onEpicsChange}
+        onTasksChange={() => onUpdate(null)}
+      />
       <DayColumn
         date={anchor}
         allTasks={tasks}
@@ -16,13 +23,6 @@ export function DayView({ anchor, tasks, epics, onUpdate, onDelete, onCreate, on
         onUpdate={onUpdate}
         onDelete={onDelete}
         onCreate={onCreate}
-      />
-      <EpicsPanel
-        epics={epics}
-        tasks={tasks}
-        currentDate={anchor}
-        onEpicsChange={onEpicsChange}
-        onTasksChange={() => onUpdate(null)}
       />
       <DayPlanner
         date={anchor}
