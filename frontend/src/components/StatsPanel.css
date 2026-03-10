@@ -1,0 +1,195 @@
+.stats-panel {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.stats-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color var(--transition), background var(--transition);
+}
+
+.stats-panel-toggle:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+.stats-panel-toggle svg:last-child { margin-left: auto; }
+
+.stats-panel-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Stat Block ── */
+.stat-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.stat-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  transition: background var(--transition);
+}
+
+.stat-block-header:hover { background: var(--border); }
+
+.stat-block-body {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Progress bar */
+.stat-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.stat-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.stat-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Count pills */
+.stat-counts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.stat-count-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  flex: 1;
+}
+
+.stat-count-num {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+}
+
+.stat-count-lbl {
+  font-size: 10px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-count-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+}
+
+/* Priority breakdown */
+.stat-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stat-breakdown-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  margin-bottom: 1px;
+}
+
+.stat-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.stat-priority-icon {
+  font-size: 11px;
+  font-weight: 700;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.stat-breakdown-name {
+  font-size: 11px;
+  color: var(--text-muted);
+  width: 46px;
+  flex-shrink: 0;
+}
+
+.stat-mini-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stat-mini-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.stat-breakdown-val {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text);
+  min-width: 26px;
+  text-align: right;
+}
+
+.stat-breakdown-total {
+  color: var(--text-faint);
+  font-weight: 400;
+}

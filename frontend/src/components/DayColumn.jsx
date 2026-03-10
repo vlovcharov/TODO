@@ -1,0 +1,145 @@
+import { useState, useCallback } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { format, isToday, isSameDay } from 'date-fns';
+import { Plus } from 'lucide-react';
+import TaskCard from './TaskCard';
+import { tasksApi } from '../api';
+import { isRecurringActiveOnDate, isCompletedOnDate, formatDateParam } from '../constants';
+import './TaskCard.css';
+
+export default function DayColumn({ date, allTasks, onUpdate, onDelete, onCreate, compact = false }) {
+  const [activeId, setActiveId] = useState(null);
+  const isCurrentDay = isToday(date);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // Get tasks for this day (non-recurring scheduled tasks + active recurring tasks)
+  const dateStr = formatDateParam(date);
+  const dayTasks = allTasks.filter(t => {
+    if (t.parentId) return false;
+    if ((t.recurrenceMask ?? 0) !== 0) return isRecurringActiveOnDate(t, date);
+    return t.scheduledDate === dateStr;
+  }).sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const doneTasks = dayTasks.filter(t => isCompletedOnDate(t, date));
+  const activeTasks = dayTasks.filter(t => !isCompletedOnDate(t, date));
+  const activeTaskIds = activeTasks.map(t => t.id);
+
+  const activeTask = allTasks.find(t => t.id === activeId);
+
+  const handleDragStart = ({ active }) => setActiveId(active.id);
+
+  const handleDragEnd = async ({ active, over }) => {
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = activeTaskIds.indexOf(active.id);
+    const newIndex = activeTaskIds.indexOf(over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = [...activeTaskIds];
+    reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, active.id);
+
+    await tasksApi.reorder(reordered);
+    // Trigger a refresh from parent
+    onUpdate(null);
+  };
+
+  return (
+    <div className={`day-column ${isCurrentDay ? 'today' : ''} ${compact ? 'compact' : ''}`}>
+      <div className="day-header">
+        <div className="day-header-content">
+          <span className="day-name">{format(date, compact ? 'EEE' : 'EEEE')}</span>
+          <span className={`day-number ${isCurrentDay ? 'today-badge' : ''}`}>
+            {format(date, 'd')}
+          </span>
+          {!compact && <span className="day-month">{format(date, 'MMM yyyy')}</span>}
+        </div>
+        <button
+          className="add-task-btn"
+          onClick={() => onCreate({ scheduledDate: date })}
+          title="Add task"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+
+      <div className="day-tasks">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={activeTaskIds} strategy={verticalListSortingStrategy}>
+            {activeTasks.map(task => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                allTasks={allTasks}
+                currentDate={date}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                onCreate={onCreate}
+              />
+            ))}
+          </SortableContext>
+
+          <DragOverlay>
+            {activeTask && (
+              <TaskCard
+                task={activeTask}
+                allTasks={allTasks}
+                currentDate={date}
+                onUpdate={() => {}}
+                onDelete={() => {}}
+                onCreate={() => {}}
+              />
+            )}
+          </DragOverlay>
+        </DndContext>
+
+        {activeTasks.length === 0 && (
+          <div className="empty-day">
+            <span>No tasks</span>
+          </div>
+        )}
+      </div>
+
+      {/* Done section */}
+      {doneTasks.length > 0 && (
+        <div className="done-section">
+          <div className="done-header">Done ({doneTasks.length})</div>
+          {doneTasks.map(task => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              allTasks={allTasks}
+              currentDate={date}
+              onUpdate={onUpdate}
+              onDelete={onDelete}
+              onCreate={onCreate}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
