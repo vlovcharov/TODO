@@ -59,6 +59,7 @@ function RecurrencePicker({ mask, onChange }) {
 export default function CreateTaskModal({
   defaultDate, defaultLevel, parentId,
   task,
+  epics = [],
   onCreated, onUpdated, onClose,
   initialCreateAnother = false,
 }) {
@@ -72,6 +73,7 @@ export default function CreateTaskModal({
     priority:      'Average',
     recurrenceMask: 0,
     scheduledDate: defaultDate ? formatDateParam(defaultDate) : formatDateParam(new Date()),
+    epicId:        '',
     ...overrides,
   });
 
@@ -83,6 +85,7 @@ export default function CreateTaskModal({
       priority:      task.priority,
       recurrenceMask: task.recurrenceMask ?? 0,
       scheduledDate: task.scheduledDate,
+      epicId:        task.epicId ?? '',
     } : blankForm()
   );
   const [loading, setLoading] = useState(false);
@@ -101,6 +104,7 @@ export default function CreateTaskModal({
         priority:      form.priority,
         recurrenceMask: form.recurrenceMask,
         scheduledDate: form.recurrenceMask !== 0 ? null : form.scheduledDate,
+        epicId:        form.epicId || null,
       };
 
       if (isEdit) {
@@ -121,6 +125,9 @@ export default function CreateTaskModal({
       setLoading(false);
     }
   };
+
+  // Filter out LifeGoal level
+  const availableLevels = Object.entries(LEVELS).filter(([k]) => k !== 'LifeGoal');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -159,7 +166,7 @@ export default function CreateTaskModal({
             <div className="form-group">
               <label>Level</label>
               <select className="form-input" value={form.level} onChange={e => set('level', e.target.value)}>
-                {Object.entries(LEVELS).map(([k, v]) => (
+                {availableLevels.map(([k, v]) => (
                   <option key={k} value={k}>{v.label}</option>
                 ))}
               </select>
@@ -173,6 +180,18 @@ export default function CreateTaskModal({
               </select>
             </div>
           </div>
+
+          {epics.length > 0 && (
+            <div className="form-group">
+              <label>Epic</label>
+              <select className="form-input" value={form.epicId} onChange={e => set('epicId', e.target.value)}>
+                <option value="">— No epic —</option>
+                {epics.map(ep => (
+                  <option key={ep.id} value={ep.id}>{ep.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="form-group">
             <label>Recurrence</label>

@@ -20,7 +20,7 @@ import { tasksApi } from '../api';
 import { isRecurringActiveOnDate, isCompletedOnDate, formatDateParam } from '../constants';
 import './TaskCard.css';
 
-export default function DayColumn({ date, allTasks, onUpdate, onDelete, onCreate, compact = false }) {
+export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDelete, onCreate, compact = false }) {
   const [activeId, setActiveId] = useState(null);
   const isCurrentDay = isToday(date);
 
@@ -37,8 +37,9 @@ export default function DayColumn({ date, allTasks, onUpdate, onDelete, onCreate
     return t.scheduledDate === dateStr;
   }).sort((a, b) => a.sortOrder - b.sortOrder);
 
-  const doneTasks = dayTasks.filter(t => isCompletedOnDate(t, date));
-  const activeTasks = dayTasks.filter(t => !isCompletedOnDate(t, date));
+  const doneTasks   = dayTasks.filter(t => isCompletedOnDate(t, date));
+  const missedTasks = dayTasks.filter(t => t.isMissed && !isCompletedOnDate(t, date));
+  const activeTasks = dayTasks.filter(t => !isCompletedOnDate(t, date) && !t.isMissed);
   const activeTaskIds = activeTasks.map(t => t.id);
 
   const activeTask = allTasks.find(t => t.id === activeId);
@@ -100,6 +101,7 @@ export default function DayColumn({ date, allTasks, onUpdate, onDelete, onCreate
                 task={task}
                 allTasks={allTasks}
                 currentDate={date}
+                epics={epics}
                 onUpdate={onUpdate}
                 onDelete={onDelete}
                 onCreate={onCreate}
@@ -128,6 +130,25 @@ export default function DayColumn({ date, allTasks, onUpdate, onDelete, onCreate
         )}
       </div>
 
+      {/* Missed section */}
+      {missedTasks.length > 0 && (
+        <div className="missed-section">
+          <div className="missed-header">Missed ({missedTasks.length})</div>
+          {missedTasks.map(task => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              allTasks={allTasks}
+              currentDate={date}
+                epics={epics}
+              onUpdate={onUpdate}
+              onDelete={onDelete}
+              onCreate={onCreate}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Done section */}
       {doneTasks.length > 0 && (
         <div className="done-section">
@@ -138,6 +159,7 @@ export default function DayColumn({ date, allTasks, onUpdate, onDelete, onCreate
               task={task}
               allTasks={allTasks}
               currentDate={date}
+                epics={epics}
               onUpdate={onUpdate}
               onDelete={onDelete}
               onCreate={onCreate}

@@ -49,7 +49,7 @@ function RolloverTrail({ count, originalDate }) {
   );
 }
 
-export default function TaskCard({ task, allTasks, currentDate, onUpdate, onDelete, onCreate, depth = 0 }) {
+export default function TaskCard({ task, allTasks, currentDate, epics = [], onUpdate, onDelete, onCreate, depth = 0 }) {
   const [expanded, setExpanded] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -65,6 +65,10 @@ export default function TaskCard({ task, allTasks, currentDate, onUpdate, onDele
   const priority    = PRIORITIES[task.priority] || PRIORITIES.Average;
   const isRecurring = (task.recurrenceMask ?? 0) !== 0;
   const recurLabel  = recurrenceLabel(task.recurrenceMask ?? 0);
+
+  // Epic color overrides the left border when depth === 0
+  const epic = depth === 0 && task.epicId ? epics.find(e => e.id === task.epicId) : null;
+  const borderColor = epic ? epic.color : level.color;
 
   const handleToggle = async () => {
     const dateParam = isRecurring ? formatDateParam(currentDate) : undefined;
@@ -87,8 +91,8 @@ export default function TaskCard({ task, allTasks, currentDate, onUpdate, onDele
     <>
       <div
         ref={setNodeRef}
-        style={style}
-        className={`task-card ${isCompleted ? 'task-done' : ''} ${isDragging ? 'dragging' : ''} depth-${Math.min(depth, 3)}`}
+        style={{ ...style, '--task-border-color': borderColor }}
+        className={`task-card ${isCompleted ? 'task-done' : ''} ${isDragging ? 'dragging' : ''} depth-${Math.min(depth, 3)} ${epic ? 'has-epic' : ''}`}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
@@ -106,7 +110,7 @@ export default function TaskCard({ task, allTasks, currentDate, onUpdate, onDele
           <button
             className={`checkbox ${isCompleted ? 'checked' : ''}`}
             onClick={handleToggle}
-            style={{ borderColor: level.color }}
+            style={{ borderColor: borderColor }}
           >
             {isCompleted && (
               <svg width="10" height="8" viewBox="0 0 10 8">
@@ -174,6 +178,7 @@ export default function TaskCard({ task, allTasks, currentDate, onUpdate, onDele
                 task={sub}
                 allTasks={allTasks}
                 currentDate={currentDate}
+                epics={epics}
                 onUpdate={onUpdate}
                 onDelete={onDelete}
                 onCreate={onCreate}
@@ -187,6 +192,7 @@ export default function TaskCard({ task, allTasks, currentDate, onUpdate, onDele
       {editing && (
         <CreateTaskModal
           task={task}
+          epics={epics}
           onUpdated={updated => onUpdate(updated)}
           onClose={() => setEditing(false)}
         />

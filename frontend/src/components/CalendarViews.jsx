@@ -1,18 +1,32 @@
 import { eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, isSameMonth, isToday } from 'date-fns';
 import DayColumn from './DayColumn';
+import EpicsPanel from './EpicsPanel';
+import DayPlanner from './DayPlanner';
 import { formatDateParam, LEVELS, isCompletedOnDate, isRecurringActiveOnDate } from '../constants';
 import { tasksApi } from '../api';
 
 // ─── DAY VIEW ──────────────────────────────────────────────────────────────
-export function DayView({ anchor, tasks, onUpdate, onDelete, onCreate }) {
+export function DayView({ anchor, tasks, epics, onUpdate, onDelete, onCreate, onEpicsChange }) {
   return (
     <div className="view-day">
       <DayColumn
         date={anchor}
         allTasks={tasks}
+        epics={epics}
         onUpdate={onUpdate}
         onDelete={onDelete}
         onCreate={onCreate}
+      />
+      <EpicsPanel
+        epics={epics}
+        tasks={tasks}
+        currentDate={anchor}
+        onEpicsChange={onEpicsChange}
+        onTasksChange={() => onUpdate(null)}
+      />
+      <DayPlanner
+        date={anchor}
+        tasks={tasks}
       />
     </div>
   );
