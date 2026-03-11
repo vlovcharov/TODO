@@ -164,9 +164,11 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
           </span>
 
           <div className={`task-actions ${showActions ? 'visible' : ''}`}>
-            <button className="action-btn" onClick={() => setEditing(true)} title="Edit">
-              <Pencil size={13} />
-            </button>
+            {!task.isMissed && (
+              <button className="action-btn" onClick={() => setEditing(true)} title="Edit">
+                <Pencil size={13} />
+              </button>
+            )}
             {!isRecurring && (
               <>
                 <button className="action-btn" onClick={handleMoveTomorrow} title="Move to tomorrow">
@@ -179,14 +181,16 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
                 )}
               </>
             )}
-            <button
-              className="action-btn"
-              onClick={() => onCreate({ parentId: task.id, level: task.level, scheduledDate: task.scheduledDate })}
-              title="Add subtask"
-            >
-              <Plus size={13} />
-            </button>
-            {!isPast && (
+            {!task.isMissed && (
+              <button
+                className="action-btn"
+                onClick={() => onCreate({ parentId: task.id, level: task.level, scheduledDate: task.scheduledDate })}
+                title="Add subtask"
+              >
+                <Plus size={13} />
+              </button>
+            )}
+            {!isPast && !task.isMissed && (
               <button className="action-btn danger" onClick={handleDelete} title="Delete">
                 <Trash2 size={13} />
               </button>
