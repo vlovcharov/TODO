@@ -115,12 +115,12 @@ export default function EpicsPanel({ epics, tasks, currentDate, onEpicsChange, o
             // All tasks in this epic (top-level only)
             const allEpicTasks = tasks.filter(t => t.epicId === epic.id && !t.parentId);
 
-            // Deduplicate rollover chains: for tasks sharing the same originalScheduledDate
-            // (or their own id if never rolled over), only keep the active (non-missed) copy.
-            // If the whole chain is missed (e.g. all in the past), keep the latest copy.
+            // Deduplicate rollover chains: the original missed task has originalScheduledDate=null
+            // and scheduledDate=X. The copy has originalScheduledDate=X.
+            // So the chain key for both is X (the original's scheduledDate).
             const chainMap = new Map();
             for (const t of allEpicTasks) {
-              const chainKey = t.originalScheduledDate ?? t.id;
+              const chainKey = t.originalScheduledDate ?? t.scheduledDate;
               const existing = chainMap.get(chainKey);
               if (!existing) {
                 chainMap.set(chainKey, t);
