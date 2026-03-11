@@ -1059,10 +1059,13 @@
   position: absolute;
   top: 3px;
   right: 6px;
-  opacity: 0.4;
+  opacity: 0.5;
   color: var(--text-muted);
   transition: opacity var(--transition);
   line-height: 1;
+  z-index: 10;
+  pointer-events: all;
+  cursor: pointer;
 }
 
 .schedule-block:hover .schedule-block-delete { opacity: 1; }

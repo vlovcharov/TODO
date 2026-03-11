@@ -148,11 +148,39 @@ public class TaskService
     {
         var task = await _store.GetTaskAsync(id);
         if (task == null) return null;
-        task.ScheduledDate = req.NewDate;
-        task.IsMissed = false;  // moving a task always reschedules it as active
-        if (req.NewSortOrder.HasValue) task.SortOrder = req.NewSortOrder.Value;
-        await _store.SaveTaskAsync(task);
-        return await _store.GetTaskAsync(id);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        if (task.IsMissed)
+        {
+            // Missed tasks: keep the original as-is (IsMissed=true on its date),
+            // and create a new copy on the target date.
+            // The copy is missed if the target is still in the past, active otherwise.
+            var copy = new TodoTask
+            {
+                Title                 = task.Title,
+                Description           = task.Description,
+                Level                 = task.Level,
+                Priority              = task.Priority,
+                ScheduledDate         = req.NewDate,
+                OriginalScheduledDate = task.OriginalScheduledDate ?? task.ScheduledDate,
+                RolloverCount         = task.RolloverCount + 1,
+                SortOrder             = task.SortOrder,
+                RecurrenceMask        = task.RecurrenceMask,
+                EpicId                = task.EpicId,
+                IsMissed              = req.NewDate < today,
+            };
+            await _store.SaveTaskAsync(copy);
+            return await _store.GetTaskAsync(copy.Id);
+        }
+        else
+        {
+            // Regular tasks: just move in place
+            task.ScheduledDate = req.NewDate;
+            if (req.NewSortOrder.HasValue) task.SortOrder = req.NewSortOrder.Value;
+            await _store.SaveTaskAsync(task);
+            return await _store.GetTaskAsync(id);
+        }
     }
 
     public async Task ReorderTasksAsync(ReorderRequest req)

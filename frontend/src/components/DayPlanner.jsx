@@ -69,6 +69,8 @@ function ScheduleBlock({ block, onUpdate, onDelete, onMoveCommit }) {
 
   // ── Drag block to new time ─────────────────────────────────────────────
   const handleDragStart = (e) => {
+    // Don't drag when clicking the delete button or resize handle
+    if (e.target.closest('.schedule-block-delete') || e.target.closest('.schedule-block-resize')) return;
     if (resizing.current) return;
     dragging.current  = true;
     startY.current    = e.clientY;
