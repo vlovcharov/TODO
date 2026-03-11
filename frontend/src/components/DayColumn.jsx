@@ -20,7 +20,7 @@ import { tasksApi } from '../api';
 import { isRecurringActiveOnDate, isCompletedOnDate, formatDateParam } from '../constants';
 import './TaskCard.css';
 
-export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDelete, onCreate, onDoubleClickHeader, compact = false }) {
+export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDelete, onCreate, onClickHeader, compact = false }) {
   const [activeId, setActiveId] = useState(null);
   const isCurrentDay = isToday(date);
   const isPast = isBefore(startOfDay(date), startOfDay(new Date()));
@@ -75,7 +75,7 @@ export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDele
 
   return (
     <div className={`day-column ${isCurrentDay ? 'today' : ''} ${compact ? 'compact' : ''}`}>
-      <div className="day-header" onDoubleClick={onDoubleClickHeader} style={onDoubleClickHeader ? { cursor: 'pointer' } : undefined}>
+      <div className="day-header" onClick={onClickHeader} style={onClickHeader ? { cursor: 'pointer' } : undefined}>
         <div className="day-header-content">
           <span className="day-name">{format(date, compact ? 'EEE' : 'EEEE')}</span>
           <span className={`day-number ${isCurrentDay ? 'today-badge' : ''}`}>
@@ -90,7 +90,7 @@ export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDele
         </div>
         <button
           className="add-task-btn"
-          onClick={() => onCreate({ scheduledDate: date })}
+          onClick={e => { e.stopPropagation(); onCreate({ scheduledDate: date }); }}
           title="Add task"
         >
           <Plus size={14} />

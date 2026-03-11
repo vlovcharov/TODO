@@ -33,7 +33,7 @@ export function DayView({ anchor, tasks, epics, onUpdate, onDelete, onCreate, on
 }
 
 // ─── WEEK VIEW ─────────────────────────────────────────────────────────────
-export function WeekView({ anchor, tasks, onUpdate, onDelete, onCreate, onNavigate }) {
+export function WeekView({ anchor, tasks, epics = [], onUpdate, onDelete, onCreate, onNavigate }) {
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(anchor, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
@@ -45,10 +45,11 @@ export function WeekView({ anchor, tasks, onUpdate, onDelete, onCreate, onNaviga
           key={formatDateParam(day)}
           date={day}
           allTasks={tasks}
+          epics={epics}
           onUpdate={onUpdate}
           onDelete={onDelete}
           onCreate={onCreate}
-          onDoubleClickHeader={() => onNavigate && onNavigate('Day', day)}
+          onClickHeader={() => onNavigate && onNavigate('Day', day)}
           compact
         />
       ))}
@@ -93,9 +94,8 @@ export function MonthView({ anchor, tasks, onUpdate, onDelete, onCreate, onNavig
                 <div
                   key={dateStr}
                   className={`month-cell ${isCurrentMonth ? '' : 'other-month'} ${todayClass}`}
-                  onClick={() => onCreate({ scheduledDate: day })}
-                  onDoubleClick={() => onNavigate && onNavigate('Day', day)}
-                  title="Double-click to open day"
+                  onClick={() => onNavigate && onNavigate('Day', day)}
+                  title="Click to open day"
                 >
                   <div className="month-cell-date">{format(day, 'd')}</div>
                   <div className="month-cell-tasks">
@@ -151,7 +151,6 @@ export function YearView({ anchor, tasks, onUpdate, onDelete, onCreate, onNaviga
             key={monthStr}
             className="year-month-cell"
             onClick={() => onNavigate && onNavigate('Month', monthDate)}
-            onDoubleClick={() => onNavigate && onNavigate('Month', monthDate)}
             title="Click to open month"
           >
             <div className="year-month-name">{format(monthDate, 'MMM')}</div>
