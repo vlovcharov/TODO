@@ -149,6 +149,7 @@ public class TaskService
         var task = await _store.GetTaskAsync(id);
         if (task == null) return null;
         task.ScheduledDate = req.NewDate;
+        task.IsMissed = false;  // moving a task always reschedules it as active
         if (req.NewSortOrder.HasValue) task.SortOrder = req.NewSortOrder.Value;
         await _store.SaveTaskAsync(task);
         return await _store.GetTaskAsync(id);

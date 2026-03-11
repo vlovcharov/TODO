@@ -49,7 +49,7 @@ function RolloverTrail({ count, originalDate }) {
   );
 }
 
-export default function TaskCard({ task, allTasks, currentDate, epics = [], onUpdate, onDelete, onCreate, depth = 0 }) {
+export default function TaskCard({ task, allTasks, currentDate, epics = [], isPast = false, onUpdate, onDelete, onCreate, depth = 0 }) {
   const [expanded, setExpanded] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -186,9 +186,11 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], onUp
             >
               <Plus size={13} />
             </button>
-            <button className="action-btn danger" onClick={handleDelete} title="Delete">
-              <Trash2 size={13} />
-            </button>
+            {!isPast && (
+              <button className="action-btn danger" onClick={handleDelete} title="Delete">
+                <Trash2 size={13} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -207,6 +209,7 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], onUp
                 allTasks={allTasks}
                 currentDate={currentDate}
                 epics={epics}
+                isPast={isPast}
                 onUpdate={onUpdate}
                 onDelete={onDelete}
                 onCreate={onCreate}

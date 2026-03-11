@@ -13,7 +13,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { format, isToday, isSameDay } from 'date-fns';
+import { format, isToday, isBefore, startOfDay } from 'date-fns';
 import { Plus } from 'lucide-react';
 import TaskCard from './TaskCard';
 import { tasksApi } from '../api';
@@ -23,13 +23,13 @@ import './TaskCard.css';
 export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDelete, onCreate, onDoubleClickHeader, compact = false }) {
   const [activeId, setActiveId] = useState(null);
   const isCurrentDay = isToday(date);
+  const isPast = isBefore(startOfDay(date), startOfDay(new Date()));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Get tasks for this day (non-recurring scheduled tasks + active recurring tasks)
   const dateStr = formatDateParam(date);
   const dayTasks = allTasks.filter(t => {
     if (t.parentId) return false;
@@ -59,9 +59,19 @@ export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDele
     reordered.splice(newIndex, 0, active.id);
 
     await tasksApi.reorder(reordered);
-    // Trigger a refresh from parent
     onUpdate(null);
   };
+
+  const cardProps = (task) => ({
+    task,
+    allTasks,
+    currentDate: date,
+    epics,
+    isPast,
+    onUpdate,
+    onDelete,
+    onCreate,
+  });
 
   return (
     <div className={`day-column ${isCurrentDay ? 'today' : ''} ${compact ? 'compact' : ''}`}>
@@ -96,16 +106,7 @@ export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDele
         >
           <SortableContext items={activeTaskIds} strategy={verticalListSortingStrategy}>
             {activeTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                allTasks={allTasks}
-                currentDate={date}
-                epics={epics}
-                onUpdate={onUpdate}
-                onDelete={onDelete}
-                onCreate={onCreate}
-              />
+              <TaskCard key={task.id} {...cardProps(task)} />
             ))}
           </SortableContext>
 
@@ -124,49 +125,31 @@ export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDele
         </DndContext>
 
         {activeTasks.length === 0 && (
-          <div className="empty-day">
-            <span>No tasks</span>
-          </div>
+          <div className="empty-day"><span>No tasks</span></div>
         )}
       </div>
-
-      {/* Missed section */}
-      {missedTasks.length > 0 && (
-        <div className="missed-section">
-          <div className="missed-header">Missed ({missedTasks.length})</div>
-          {missedTasks.map(task => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              allTasks={allTasks}
-              currentDate={date}
-                epics={epics}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
-              onCreate={onCreate}
-            />
-          ))}
-        </div>
-      )}
 
       {/* Done section */}
       {doneTasks.length > 0 && (
         <div className="done-section">
           <div className="done-header">Done ({doneTasks.length})</div>
           {doneTasks.map(task => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              allTasks={allTasks}
-              currentDate={date}
-                epics={epics}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
-              onCreate={onCreate}
-            />
+            <TaskCard key={task.id} {...cardProps(task)} />
+          ))}
+        </div>
+      )}
+
+      {/* Missed section — below done */}
+      {missedTasks.length > 0 && (
+        <div className="missed-section">
+          <div className="missed-header">Missed ({missedTasks.length})</div>
+          {missedTasks.map(task => (
+            <TaskCard key={task.id} {...cardProps(task)} />
           ))}
         </div>
       )}
     </div>
   );
 }
+
+
