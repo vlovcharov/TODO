@@ -202,7 +202,7 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
           <div className="task-desc">{task.description}</div>
         )}
 
-        <RolloverTrail count={task.rolloverCount} originalDate={task.originalScheduledDate} />
+        <RolloverTrail count={task.parentId ? 0 : task.rolloverCount} originalDate={task.originalScheduledDate} />
 
         {expanded && subtasks.length > 0 && (
           <div className="subtasks">
