@@ -20,7 +20,7 @@ import { tasksApi } from '../api';
 import { isRecurringActiveOnDate, isCompletedOnDate, formatDateParam } from '../constants';
 import './TaskCard.css';
 
-export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDelete, onCreate, compact = false }) {
+export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDelete, onCreate, onDoubleClickHeader, compact = false }) {
   const [activeId, setActiveId] = useState(null);
   const isCurrentDay = isToday(date);
 
@@ -65,7 +65,7 @@ export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDele
 
   return (
     <div className={`day-column ${isCurrentDay ? 'today' : ''} ${compact ? 'compact' : ''}`}>
-      <div className="day-header">
+      <div className="day-header" onDoubleClick={onDoubleClickHeader} style={onDoubleClickHeader ? { cursor: 'pointer' } : undefined}>
         <div className="day-header-content">
           <span className="day-name">{format(date, compact ? 'EEE' : 'EEEE')}</span>
           <span className={`day-number ${isCurrentDay ? 'today-badge' : ''}`}>

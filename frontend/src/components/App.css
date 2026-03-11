@@ -1059,7 +1059,7 @@
   position: absolute;
   top: 3px;
   right: 6px;
-  opacity: 0;
+  opacity: 0.4;
   color: var(--text-muted);
   transition: opacity var(--transition);
   line-height: 1;

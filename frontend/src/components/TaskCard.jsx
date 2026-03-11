@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ChevronDown, ChevronRight, Plus, Trash2, GripVertical, ArrowRight, Pencil } from 'lucide-react';
-import { LEVELS, PRIORITIES, isCompletedOnDate, formatDateParam, getNextPeriod, recurrenceLabel } from '../constants';
+import { ChevronDown, ChevronRight, Plus, Trash2, GripVertical, ArrowRight, Pencil, CalendarClock } from 'lucide-react';
+import { LEVELS, PRIORITIES, isCompletedOnDate, formatDateParam, getNextDay, getNextPeriod, recurrenceLabel } from '../constants';
 import { tasksApi } from '../api';
 import CreateTaskModal from './CreateTaskModal';
 
@@ -81,9 +81,23 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], onUp
     onDelete(task.id);
   };
 
-  const handleMoveNext = async () => {
-    const nextDate = getNextPeriod(task.level, new Date(task.scheduledDate + 'T00:00:00'));
-    const updated  = await tasksApi.move(task.id, formatDateParam(nextDate));
+  // Move to tomorrow (always safe, no confirmation needed)
+  const handleMoveTomorrow = async () => {
+    const tomorrow = getNextDay(new Date(task.scheduledDate + 'T00:00:00'));
+    const updated  = await tasksApi.move(task.id, formatDateParam(tomorrow));
+    onUpdate(updated);
+  };
+
+  // Move to next natural period (week/month/year) — requires confirmation for non-daily
+  const handleMoveNextPeriod = async () => {
+    const taskDate = new Date(task.scheduledDate + 'T00:00:00');
+    const nextDate = getNextPeriod(task.level, taskDate);
+    const daysDiff = Math.round((nextDate - taskDate) / (1000 * 60 * 60 * 24));
+    if (daysDiff > 1) {
+      const levelLabel = LEVELS[task.level]?.label ?? task.level;
+      if (!confirm(`Move "${task.title}" to next ${levelLabel.toLowerCase()} period?\nThis will push it ${daysDiff} days forward.`)) return;
+    }
+    const updated = await tasksApi.move(task.id, formatDateParam(nextDate));
     onUpdate(updated);
   };
 
@@ -154,9 +168,16 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], onUp
               <Pencil size={13} />
             </button>
             {!isRecurring && (
-              <button className="action-btn" onClick={handleMoveNext} title="Move to next period">
-                <ArrowRight size={13} />
-              </button>
+              <>
+                <button className="action-btn" onClick={handleMoveTomorrow} title="Move to tomorrow">
+                  <ArrowRight size={13} />
+                </button>
+                {task.level !== 'Daily' && (
+                  <button className="action-btn" onClick={handleMoveNextPeriod} title={`Move to next ${LEVELS[task.level]?.label ?? ''} period`}>
+                    <CalendarClock size={13} />
+                  </button>
+                )}
+              </>
             )}
             <button
               className="action-btn"

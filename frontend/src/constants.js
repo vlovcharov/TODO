@@ -1,10 +1,10 @@
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, addDays, addWeeks, addMonths } from 'date-fns';
 
 export const LEVELS = {
-  Daily:    { label: 'Daily',     color: '#6366f1', bg: '#eef2ff', short: 'D' },
-  Weekly:   { label: 'Weekly',    color: '#0ea5e9', bg: '#f0f9ff', short: 'W' },
-  Monthly:  { label: 'Monthly',   color: '#10b981', bg: '#f0fdf4', short: 'M' },
-  Yearly:   { label: 'Yearly',    color: '#f59e0b', bg: '#fffbeb', short: 'Y' },
+  Daily:    { label: 'Today',     color: '#6366f1', bg: '#eef2ff', short: 'D' },
+  Weekly:   { label: 'This week', color: '#0ea5e9', bg: '#f0f9ff', short: 'W' },
+  Monthly:  { label: 'This month',color: '#10b981', bg: '#f0fdf4', short: 'M' },
+  Yearly:   { label: 'This year', color: '#f59e0b', bg: '#fffbeb', short: 'Y' },
   LifeGoal: { label: 'Life Goal', color: '#ec4899', bg: '#fdf4ff', short: 'L' },
 };
 
@@ -85,12 +85,18 @@ export function isCompletedOnDate(task, date) {
   ) ?? false;
 }
 
+/** Move to tomorrow — used by the quick arrow button */
+export function getNextDay(date) {
+  return addDays(date, 1);
+}
+
+/** Move to next natural period — used only after confirmation */
 export function getNextPeriod(level, date) {
   switch (level) {
     case 'Daily':   return addDays(date, 1);
     case 'Weekly':  return addWeeks(date, 1);
     case 'Monthly': return addMonths(date, 1);
     case 'Yearly':  return addMonths(date, 12);
-    default:        return date;
+    default:        return addDays(date, 1);
   }
 }

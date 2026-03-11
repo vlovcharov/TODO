@@ -33,7 +33,7 @@ export function DayView({ anchor, tasks, epics, onUpdate, onDelete, onCreate, on
 }
 
 // ─── WEEK VIEW ─────────────────────────────────────────────────────────────
-export function WeekView({ anchor, tasks, onUpdate, onDelete, onCreate }) {
+export function WeekView({ anchor, tasks, onUpdate, onDelete, onCreate, onNavigate }) {
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(anchor, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
@@ -48,6 +48,7 @@ export function WeekView({ anchor, tasks, onUpdate, onDelete, onCreate }) {
           onUpdate={onUpdate}
           onDelete={onDelete}
           onCreate={onCreate}
+          onDoubleClickHeader={() => onNavigate && onNavigate('Day', day)}
           compact
         />
       ))}
@@ -56,7 +57,7 @@ export function WeekView({ anchor, tasks, onUpdate, onDelete, onCreate }) {
 }
 
 // ─── MONTH VIEW ────────────────────────────────────────────────────────────
-export function MonthView({ anchor, tasks, onUpdate, onDelete, onCreate }) {
+export function MonthView({ anchor, tasks, onUpdate, onDelete, onCreate, onNavigate }) {
   const monthStart = startOfMonth(anchor);
   const monthEnd = endOfMonth(anchor);
   const weeks = eachWeekOfInterval(
@@ -93,6 +94,8 @@ export function MonthView({ anchor, tasks, onUpdate, onDelete, onCreate }) {
                   key={dateStr}
                   className={`month-cell ${isCurrentMonth ? '' : 'other-month'} ${todayClass}`}
                   onClick={() => onCreate({ scheduledDate: day })}
+                  onDoubleClick={() => onNavigate && onNavigate('Day', day)}
+                  title="Double-click to open day"
                 >
                   <div className="month-cell-date">{format(day, 'd')}</div>
                   <div className="month-cell-tasks">
@@ -135,8 +138,6 @@ export function YearView({ anchor, tasks, onUpdate, onDelete, onCreate, onNaviga
   return (
     <div className="view-year">
       {months.map(monthDate => {
-        const monthStart = startOfMonth(monthDate);
-        const monthEnd = endOfMonth(monthDate);
         const monthStr = format(monthDate, 'yyyy-MM');
 
         const monthTasks = tasks.filter(t => {
@@ -150,6 +151,8 @@ export function YearView({ anchor, tasks, onUpdate, onDelete, onCreate, onNaviga
             key={monthStr}
             className="year-month-cell"
             onClick={() => onNavigate && onNavigate('Month', monthDate)}
+            onDoubleClick={() => onNavigate && onNavigate('Month', monthDate)}
+            title="Click to open month"
           >
             <div className="year-month-name">{format(monthDate, 'MMM')}</div>
             <div className="year-month-count">{monthTasks.length}</div>

@@ -169,8 +169,8 @@ export default function App() {
           ) : (
             <>
               {view === 'Day'   && <DayView {...viewProps} />}
-              {view === 'Week'  && <WeekView {...viewProps} />}
-              {view === 'Month' && <MonthView {...viewProps} />}
+              {view === 'Week'  && <WeekView {...viewProps} onNavigate={(v, d) => { setView(v); setAnchor(d); }} />}
+              {view === 'Month' && <MonthView {...viewProps} onNavigate={(v, d) => { setView(v); setAnchor(d); }} />}
               {view === 'Year'  && <YearView {...viewProps} onNavigate={(v, d) => { setView(v); setAnchor(d); }} />}
             </>
           )}

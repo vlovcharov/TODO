@@ -30,13 +30,17 @@ function formatTime(mins) {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
-function ScheduleBlock({ block, onUpdate, onDelete }) {
+function ScheduleBlock({ block, onUpdate, onDelete, onMoveCommit }) {
   const top    = minutesToY(block.startMinutes);
   const height = Math.max(SLOT_HEIGHT, minutesToY(block.endMinutes) - minutesToY(block.startMinutes));
+  const duration = block.endMinutes - block.startMinutes;
   const resizing  = useRef(false);
+  const dragging  = useRef(false);
   const startY    = useRef(0);
   const startEnd  = useRef(0);
+  const startStart = useRef(0);
 
+  // ── Resize from bottom edge ────────────────────────────────────────────
   const handleResizeStart = (e) => {
     e.stopPropagation();
     resizing.current = true;
@@ -56,10 +60,34 @@ function ScheduleBlock({ block, onUpdate, onDelete }) {
       resizing.current = false;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      await scheduleApi.update(block.id, {
-        date: block.date, taskId: block.taskId ?? null,
-        label: block.label, startMinutes: block.startMinutes, endMinutes: block.endMinutes,
-      });
+      await onMoveCommit(block);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  // ── Drag block to new time ─────────────────────────────────────────────
+  const handleDragStart = (e) => {
+    if (resizing.current) return;
+    dragging.current  = true;
+    startY.current    = e.clientY;
+    startStart.current = block.startMinutes;
+
+    const onMove = (ev) => {
+      if (!dragging.current) return;
+      const dy  = ev.clientY - startY.current;
+      const dm  = Math.round((dy / SLOT_HEIGHT) * SLOT_MINS);
+      const newStart = snapToSlot(Math.max(START_HOUR * 60,
+                                           Math.min(END_HOUR * 60 - duration, startStart.current + dm)));
+      onUpdate({ ...block, startMinutes: newStart, endMinutes: newStart + duration });
+    };
+
+    const onUp = async () => {
+      dragging.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      await onMoveCommit(block);
     };
 
     document.addEventListener('mousemove', onMove);
@@ -69,7 +97,8 @@ function ScheduleBlock({ block, onUpdate, onDelete }) {
   return (
     <div
       className="schedule-block"
-      style={{ top, height, '--block-color': block.color ?? '#6366f1' }}
+      style={{ top, height, '--block-color': block.color ?? '#6366f1', cursor: 'grab' }}
+      onMouseDown={handleDragStart}
     >
       <div className="schedule-block-label">
         <span>{block.label}</span>
@@ -77,7 +106,12 @@ function ScheduleBlock({ block, onUpdate, onDelete }) {
           {formatTime(block.startMinutes)}–{formatTime(block.endMinutes)}
         </span>
       </div>
-      <button className="schedule-block-delete" onClick={() => onDelete(block.id)} title="Remove">
+      <button
+        className="schedule-block-delete"
+        onMouseDown={e => e.stopPropagation()}
+        onClick={() => onDelete(block.id)}
+        title="Remove"
+      >
         <X size={11} />
       </button>
       <div className="schedule-block-resize" onMouseDown={handleResizeStart} />
@@ -152,6 +186,13 @@ export default function DayPlanner({ date, tasks }) {
     setBlocks(prev => prev.map(b => b.id === updated.id ? updated : b));
   };
 
+  const handleMoveCommit = async (block) => {
+    await scheduleApi.update(block.id, {
+      date: block.date, taskId: block.taskId ?? null,
+      label: block.label, startMinutes: block.startMinutes, endMinutes: block.endMinutes,
+    });
+  };
+
   const handleBlockDelete = async (id) => {
     await scheduleApi.delete(id);
     setBlocks(prev => prev.filter(b => b.id !== id));
@@ -223,6 +264,7 @@ export default function DayPlanner({ date, tasks }) {
                   block={block}
                   onUpdate={handleBlockUpdate}
                   onDelete={handleBlockDelete}
+                  onMoveCommit={handleMoveCommit}
                 />
               ))}
             </div>
