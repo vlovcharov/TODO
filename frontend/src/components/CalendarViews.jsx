@@ -94,10 +94,17 @@ export function MonthView({ anchor, tasks, onUpdate, onDelete, onCreate, onNavig
                 <div
                   key={dateStr}
                   className={`month-cell ${isCurrentMonth ? '' : 'other-month'} ${todayClass}`}
-                  onClick={() => onNavigate && onNavigate('Day', day)}
-                  title="Click to open day"
+                  onDoubleClick={() => onNavigate && onNavigate('Day', day)}
+                  title="Double-click to open day"
                 >
-                  <div className="month-cell-date">{format(day, 'd')}</div>
+                  <div className="month-cell-date">
+                    <span>{format(day, 'd')}</span>
+                    <button
+                      className="month-cell-add"
+                      onClick={e => { e.stopPropagation(); onCreate({ scheduledDate: day }); }}
+                      title="Add task"
+                    >+</button>
+                  </div>
                   <div className="month-cell-tasks">
                     {dayTasks.slice(0, 3).map(t => {
                       const level = LEVELS[t.level];

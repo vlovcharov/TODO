@@ -150,6 +150,14 @@
   opacity: 0.8;
 }
 
+.task-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .task-actions {
   display: flex;
   align-items: center;
@@ -157,7 +165,7 @@
   opacity: 0;
   transition: opacity var(--transition);
   flex-shrink: 0;
-  justify-content: flex-end;
+  margin-left: auto;
 }
 
 .task-actions.visible { opacity: 1; }

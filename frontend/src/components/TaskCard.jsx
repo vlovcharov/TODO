@@ -110,15 +110,18 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
-        <div className="task-row"
-          draggable
-          onDragStart={e => {
-            e.dataTransfer.setData('text/task-id', task.id);
-            e.dataTransfer.setData('text/task-title', task.title);
-            e.stopPropagation();
-          }}
-        >
-          <div className="drag-handle" {...attributes} {...listeners}>
+        <div className="task-row">
+          <div
+            className="drag-handle"
+            {...attributes}
+            {...listeners}
+            draggable
+            onDragStart={e => {
+              e.dataTransfer.setData('text/task-id', task.id);
+              e.dataTransfer.setData('text/task-title', task.title);
+              // don't stopPropagation — dnd-kit needs to see pointer events separately
+            }}
+          >
             <GripVertical size={14} />
           </div>
 
