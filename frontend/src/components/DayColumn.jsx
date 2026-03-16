@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -18,9 +18,10 @@ import { Plus } from 'lucide-react';
 import TaskCard from './TaskCard';
 import { tasksApi } from '../api';
 import { isRecurringActiveOnDate, isCompletedOnDate, isTaskStickyOnDate, formatDateParam } from '../constants';
+import { sortTasks } from './App';
 import './TaskCard.css';
 
-export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDelete, onCreate, onClickHeader, compact = false }) {
+export default function DayColumn({ date, allTasks, epics = [], sortBy = 'manual', onUpdate, onDelete, onCreate, onClickHeader, compact = false }) {
   const [activeId, setActiveId] = useState(null);
   const isCurrentDay = isToday(date);
   const isPast = isBefore(startOfDay(date), startOfDay(new Date()));
@@ -53,7 +54,10 @@ export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDele
 
   const doneTasks   = dayTasks.filter(t => isCompletedOnDate(t, date));
   const missedTasks = dayTasks.filter(t => t.isMissed && !isCompletedOnDate(t, date));
-  const activeTasks = dayTasks.filter(t => !isCompletedOnDate(t, date) && !t.isMissed);
+  const activeTasks = sortTasks(
+    dayTasks.filter(t => !isCompletedOnDate(t, date) && !t.isMissed),
+    sortBy
+  );
   const activeTaskIds = activeTasks.map(t => t.id);
 
   const activeTask = allTasks.find(t => t.id === activeId);

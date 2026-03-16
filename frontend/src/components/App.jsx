@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { addDays, addWeeks, addMonths, addYears, subDays, subWeeks, subMonths, subYears, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, Calendar, Download, Upload } from 'lucide-react';
 import { VIEWS, getViewRange, formatDateParam } from '../constants';
@@ -8,13 +8,40 @@ import CreateTaskModal from '../components/CreateTaskModal';
 import StatsPanel from '../components/StatsPanel';
 import './App.css';
 
+export const SORT_OPTIONS = [
+  { value: 'manual',    label: 'Manual order' },
+  { value: 'urgency',   label: 'By urgency' },
+  { value: 'rollover',  label: 'By rollover count' },
+];
+
+const PRIORITY_ORDER = { High: 0, Average: 1, Low: 2 };
+
+export function sortTasks(tasks, sortBy) {
+  if (sortBy === 'manual') return tasks;
+  return [...tasks].sort((a, b) => {
+    if (sortBy === 'urgency') {
+      const pa = PRIORITY_ORDER[a.priority] ?? 1;
+      const pb = PRIORITY_ORDER[b.priority] ?? 1;
+      if (pa !== pb) return pa - pb;
+      return (b.rolloverCount ?? 0) - (a.rolloverCount ?? 0);
+    }
+    if (sortBy === 'rollover') {
+      return (b.rolloverCount ?? 0) - (a.rolloverCount ?? 0);
+    }
+    return 0;
+  });
+}
+
 export default function App() {
-  const [view, setView] = useState('Day');
-  const [anchor, setAnchor] = useState(new Date());
-  const [tasks, setTasks] = useState([]);
-  const [epics, setEpics] = useState([]);
+  const [view, setView]       = useState('Day');
+  const [anchor, setAnchor]   = useState(new Date());
+  const [tasks, setTasks]     = useState([]);
+  const [epics, setEpics]     = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(null);
+  const [modal, setModal]     = useState(null);
+  const [sortBy, setSortBy]   = useState('manual');
+  const [undoToast, setUndoToast] = useState(null); // { id, title, timer }
+  const undoTimerRef = useRef(null);
 
   const loadTasks = useCallback(async () => {
     try {
@@ -42,9 +69,21 @@ export default function App() {
     });
   }, [loadTasks]);
 
-  const handleDelete = useCallback((id) => {
-    setTasks(prev => prev.filter(t => t.id !== id && !t.subtaskIds?.includes(id)));
+  const handleDelete = useCallback((id, title) => {
+    setTasks(prev => prev.filter(t => t.id !== id && t.parentId !== id));
+    // Show undo toast for 6 seconds
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndoToast({ id, title });
+    undoTimerRef.current = setTimeout(() => setUndoToast(null), 6000);
   }, []);
+
+  const handleUndo = useCallback(async () => {
+    if (!undoToast) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndoToast(null);
+    const all = await tasksApi.restore(undoToast.id);
+    setTasks(all);
+  }, [undoToast]);
 
   const handleCreate = useCallback((opts) => { setModal(opts); }, []);
   const handleCreated = useCallback(() => { loadTasks(); }, [loadTasks]);
@@ -100,7 +139,7 @@ export default function App() {
     }
   };
 
-  const viewProps = { anchor, tasks, epics, onUpdate: handleUpdate, onDelete: handleDelete, onCreate: handleCreate, onEpicsChange: loadEpics };
+  const viewProps = { anchor, tasks, epics, sortBy, onUpdate: handleUpdate, onDelete: handleDelete, onCreate: handleCreate, onEpicsChange: loadEpics };
 
   return (
     <div className="app">
@@ -122,6 +161,19 @@ export default function App() {
           <Plus size={16} />
           New Task
         </button>
+
+        <div className="sidebar-section">
+          <div className="legend-title">Sort tasks</div>
+          <select
+            className="sort-select"
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+          >
+            {SORT_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
 
         <div className="sidebar-legend">
           <div className="legend-title">Levels</div>
@@ -186,6 +238,13 @@ export default function App() {
           onCreated={handleCreated}
           onClose={() => setModal(null)}
         />
+      )}
+
+      {undoToast && (
+        <div className="undo-toast">
+          <span>"{undoToast.title}" изтрита</span>
+          <button className="undo-btn" onClick={handleUndo}>Отмени</button>
+        </div>
       )}
     </div>
   );

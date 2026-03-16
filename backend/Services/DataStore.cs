@@ -19,7 +19,8 @@ public class DataStore
     {
         await using var db = await _factory.CreateDbContextAsync();
         return await db.Tasks
-            .Include(t => t.Subtasks)
+            .Where(t => t.DeletedAt == null)
+            .Include(t => t.Subtasks.Where(s => s.DeletedAt == null))
             .Include(t => t.TaskCompletions)
             .AsNoTracking()
             .ToListAsync();
@@ -29,7 +30,8 @@ public class DataStore
     {
         await using var db = await _factory.CreateDbContextAsync();
         return await db.Tasks
-            .Include(t => t.Subtasks)
+            .Where(t => t.DeletedAt == null)
+            .Include(t => t.Subtasks.Where(s => s.DeletedAt == null))
             .Include(t => t.TaskCompletions)
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == id);
@@ -72,8 +74,25 @@ public class DataStore
     public async Task DeleteTaskAsync(string id)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var task = await db.Tasks.FindAsync(id);
-        if (task != null) { db.Tasks.Remove(task); await db.SaveChangesAsync(); }
+        var now = DateTime.UtcNow;
+        // Soft-delete the task and all its subtasks
+        var task = await db.Tasks.Include(t => t.Subtasks).FirstOrDefaultAsync(t => t.Id == id);
+        if (task == null) return;
+        task.DeletedAt = now;
+        foreach (var sub in task.Subtasks)
+            sub.DeletedAt = now;
+        await db.SaveChangesAsync();
+    }
+
+    public async Task RestoreTaskAsync(string id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var task = await db.Tasks.Include(t => t.Subtasks).FirstOrDefaultAsync(t => t.Id == id);
+        if (task == null) return;
+        task.DeletedAt = null;
+        foreach (var sub in task.Subtasks)
+            sub.DeletedAt = null;
+        await db.SaveChangesAsync();
     }
 
     // ── Completions ───────────────────────────────────────────────────────────

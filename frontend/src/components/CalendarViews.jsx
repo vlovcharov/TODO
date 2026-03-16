@@ -6,7 +6,7 @@ import { formatDateParam, LEVELS, isCompletedOnDate, isRecurringActiveOnDate } f
 import { tasksApi } from '../api';
 
 // ─── DAY VIEW ──────────────────────────────────────────────────────────────
-export function DayView({ anchor, tasks, epics, onUpdate, onDelete, onCreate, onEpicsChange }) {
+export function DayView({ anchor, tasks, epics, sortBy, onUpdate, onDelete, onCreate, onEpicsChange }) {
   return (
     <div className="view-day">
       <EpicsPanel
@@ -20,6 +20,7 @@ export function DayView({ anchor, tasks, epics, onUpdate, onDelete, onCreate, on
         date={anchor}
         allTasks={tasks}
         epics={epics}
+        sortBy={sortBy}
         onUpdate={onUpdate}
         onDelete={onDelete}
         onCreate={onCreate}
@@ -33,7 +34,7 @@ export function DayView({ anchor, tasks, epics, onUpdate, onDelete, onCreate, on
 }
 
 // ─── WEEK VIEW ─────────────────────────────────────────────────────────────
-export function WeekView({ anchor, tasks, epics = [], onUpdate, onDelete, onCreate, onNavigate }) {
+export function WeekView({ anchor, tasks, epics = [], sortBy, onUpdate, onDelete, onCreate, onNavigate }) {
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(anchor, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
@@ -46,6 +47,7 @@ export function WeekView({ anchor, tasks, epics = [], onUpdate, onDelete, onCrea
           date={day}
           allTasks={tasks}
           epics={epics}
+          sortBy={sortBy}
           onUpdate={onUpdate}
           onDelete={onDelete}
           onCreate={onCreate}

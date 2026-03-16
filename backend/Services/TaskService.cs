@@ -144,6 +144,12 @@ public class TaskService
         return true;
     }
 
+    public async Task<bool> RestoreTaskAsync(string id)
+    {
+        await _store.RestoreTaskAsync(id);
+        return true;
+    }
+
     public async Task<TodoTask?> MoveTaskAsync(string id, MoveTaskRequest req)
     {
         var task = await _store.GetTaskAsync(id);

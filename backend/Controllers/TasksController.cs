@@ -68,6 +68,14 @@ public class TasksController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id}/restore")]
+    public async Task<IActionResult> Restore(string id)
+    {
+        await _taskService.RestoreTaskAsync(id);
+        var all = await _taskService.GetAllTasksAsync();
+        return Ok(all);
+    }
+
     [HttpPost("{id}/move")]
     public async Task<IActionResult> Move(string id, [FromBody] MoveTaskRequest req)
     {

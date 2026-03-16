@@ -115,6 +115,9 @@ public class TodoTask
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Null = active. Set = soft-deleted, hidden from all queries.</summary>
+    public DateTime? DeletedAt { get; set; } = null;
 }
 
 public class TaskCompletion

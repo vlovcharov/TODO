@@ -79,8 +79,11 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
   };
 
   const handleDelete = async () => {
+    const subCount = allTasks.filter(t => t.parentId === task.id).length;
+    const subMsg = subCount > 0 ? `\n\nВнимание: ще се изтрият и ${subCount} подзадач${subCount === 1 ? 'а' : 'и'}.` : '';
+    if (!confirm(`Изтриване на "${task.title}"?${subMsg}`)) return;
     await tasksApi.delete(task.id);
-    onDelete(task.id);
+    onDelete(task.id, task.title);
   };
 
   // Move to tomorrow (always safe, no confirmation needed)

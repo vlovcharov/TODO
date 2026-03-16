@@ -9,6 +9,7 @@ export const tasksApi = {
   update: (id, data) => api.put(`/tasks/${id}`, data).then(r => r.data),
   toggle: (id, date) => api.post(`/tasks/${id}/toggle`, { date }).then(r => r.data),
   delete: (id) => api.delete(`/tasks/${id}`),
+  restore: (id) => api.post(`/tasks/${id}/restore`).then(r => r.data),
   move: (id, newDate, newSortOrder) => api.post(`/tasks/${id}/move`, { newDate, newSortOrder }).then(r => r.data),
   reorder: (taskIds) => api.post('/tasks/reorder', { taskIds }),
 };
