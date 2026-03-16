@@ -1,4 +1,4 @@
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, addDays, addWeeks, addMonths } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, addDays, addWeeks, addMonths, isWithinInterval } from 'date-fns';
 
 export const LEVELS = {
   Daily:    { label: 'Today',     color: '#6366f1', bg: '#eef2ff', short: 'D' },
@@ -99,4 +99,52 @@ export function getNextPeriod(level, date) {
     case 'Yearly':  return addMonths(date, 12);
     default:        return addDays(date, 1);
   }
+}
+
+/**
+ * Returns the period interval { start, end } for a given task level and date.
+ * e.g. Weekly on a Wednesday → { start: Monday, end: Sunday }
+ */
+export function getPeriodInterval(level, date) {
+  switch (level) {
+    case 'Weekly':  return { start: startOfWeek(date, { weekStartsOn: 1 }), end: endOfWeek(date, { weekStartsOn: 1 }) };
+    case 'Monthly': return { start: startOfMonth(date), end: endOfMonth(date) };
+    case 'Yearly':  return { start: startOfYear(date),  end: endOfYear(date) };
+    default:        return { start: date, end: date };
+  }
+}
+
+/**
+ * Returns true if a non-recurring, non-daily task should appear "sticky" on a given date:
+ * - the task's scheduledDate is within the same period as `date`
+ * - the task is after its scheduled date (don't show before creation day)
+ * - the task is not completed within the period
+ * - the task is not missed (missed tasks appear on their own date only)
+ */
+export function isTaskStickyOnDate(task, date) {
+  if ((task.recurrenceMask ?? 0) !== 0) return false;   // recurring handled separately
+  if (task.level === 'Daily') return false;              // daily tasks don't stick
+  if (task.isMissed) return false;                       // missed stay on their date
+  if (task.parentId) return false;                       // subtasks never sticky
+
+  const scheduledDate = task.scheduledDate
+    ? new Date(task.scheduledDate + 'T00:00:00')
+    : null;
+  if (!scheduledDate) return false;
+
+  // Only stick on days AFTER the scheduled date (don't duplicate on creation day)
+  if (date <= scheduledDate) return false;
+
+  // Task must be scheduled within the same period as `date`
+  const interval = getPeriodInterval(task.level, date);
+  if (!isWithinInterval(scheduledDate, interval)) return false;
+
+  // If already completed somewhere in the period, don't show as sticky
+  const completedInPeriod = task.completedDates?.some(d => {
+    const cd = new Date((typeof d === 'string' ? d : formatDateParam(new Date(d))) + 'T00:00:00');
+    return isWithinInterval(cd, interval);
+  });
+  if (completedInPeriod) return false;
+
+  return true;
 }

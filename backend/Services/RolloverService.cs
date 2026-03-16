@@ -53,6 +53,10 @@ public class RolloverService : BackgroundService
             if (task.ParentId != null) continue;
             if (task.ScheduledDate >= today) continue;
 
+            // For weekly/monthly/yearly: if completed anywhere within the period, don't roll over
+            if (task.Level != TaskLevel.Daily && IsCompletedInPeriod(task, today))
+                continue;
+
             // Walk forward from the task's scheduled date one period at a time,
             // creating a missed copy for each intermediate day/period,
             // and a final active (non-missed) copy when we reach today.
@@ -117,6 +121,34 @@ public class RolloverService : BackgroundService
             TaskLevel.Yearly  => new DateOnly(scheduled.Year + 1, 1, 1),                               // first of next year
             _                 => scheduled
         };
+
+    // Returns true if the task has a completion record within its current period.
+    // Weekly: within the same Mon–Sun week as scheduledDate
+    // Monthly: within the same calendar month
+    // Yearly: within the same calendar year
+    private static bool IsCompletedInPeriod(TodoTask task, DateOnly today)
+    {
+        if (task.TaskCompletions == null || task.TaskCompletions.Count == 0) return false;
+
+        var scheduled = task.ScheduledDate;
+        (DateOnly start, DateOnly end) = task.Level switch
+        {
+            TaskLevel.Weekly  => (GetMonday(scheduled), GetMonday(scheduled).AddDays(6)),
+            TaskLevel.Monthly => (new DateOnly(scheduled.Year, scheduled.Month, 1),
+                                  new DateOnly(scheduled.Year, scheduled.Month, 1).AddMonths(1).AddDays(-1)),
+            TaskLevel.Yearly  => (new DateOnly(scheduled.Year, 1, 1),
+                                  new DateOnly(scheduled.Year, 12, 31)),
+            _                 => (scheduled, scheduled)
+        };
+
+        return task.TaskCompletions.Any(c => c.Date >= start && c.Date <= end);
+    }
+
+    private static DateOnly GetMonday(DateOnly date)
+    {
+        int days = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return date.AddDays(-days);
+    }
 
     private static DateOnly GetNextMonday(DateOnly date)
     {

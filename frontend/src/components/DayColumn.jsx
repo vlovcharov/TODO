@@ -17,7 +17,7 @@ import { format, isToday, isBefore, startOfDay } from 'date-fns';
 import { Plus } from 'lucide-react';
 import TaskCard from './TaskCard';
 import { tasksApi } from '../api';
-import { isRecurringActiveOnDate, isCompletedOnDate, formatDateParam } from '../constants';
+import { isRecurringActiveOnDate, isCompletedOnDate, isTaskStickyOnDate, formatDateParam } from '../constants';
 import './TaskCard.css';
 
 export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDelete, onCreate, onClickHeader, compact = false }) {
@@ -31,11 +31,25 @@ export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDele
   );
 
   const dateStr = formatDateParam(date);
-  const dayTasks = allTasks.filter(t => {
+
+  // Tasks scheduled exactly on this date
+  const ownTasks = allTasks.filter(t => {
     if (t.parentId) return false;
     if ((t.recurrenceMask ?? 0) !== 0) return isRecurringActiveOnDate(t, date);
     return t.scheduledDate === dateStr;
-  }).sort((a, b) => a.sortOrder - b.sortOrder);
+  });
+
+  // Sticky tasks: weekly/monthly/yearly from the same period, shown every day until done
+  const stickyTasks = allTasks
+    .filter(t => isTaskStickyOnDate(t, date))
+    .map(t => ({ ...t, _sticky: true }));
+
+  // Merge — own tasks take priority (avoid duplicates)
+  const ownIds = new Set(ownTasks.map(t => t.id));
+  const dayTasks = [
+    ...ownTasks,
+    ...stickyTasks.filter(t => !ownIds.has(t.id)),
+  ].sort((a, b) => a.sortOrder - b.sortOrder);
 
   const doneTasks   = dayTasks.filter(t => isCompletedOnDate(t, date));
   const missedTasks = dayTasks.filter(t => t.isMissed && !isCompletedOnDate(t, date));
@@ -68,6 +82,7 @@ export default function DayColumn({ date, allTasks, epics = [], onUpdate, onDele
     currentDate: date,
     epics,
     isPast,
+    isSticky: !!task._sticky,
     onUpdate,
     onDelete,
     onCreate,

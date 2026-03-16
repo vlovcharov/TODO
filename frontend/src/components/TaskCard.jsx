@@ -49,7 +49,7 @@ function RolloverTrail({ count, originalDate }) {
   );
 }
 
-export default function TaskCard({ task, allTasks, currentDate, epics = [], isPast = false, onUpdate, onDelete, onCreate, depth = 0 }) {
+export default function TaskCard({ task, allTasks, currentDate, epics = [], isPast = false, isSticky = false, onUpdate, onDelete, onCreate, depth = 0 }) {
   const [expanded, setExpanded] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -71,7 +71,9 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
   const borderColor = epic ? epic.color : level.color;
 
   const handleToggle = async () => {
-    const dateParam = isRecurring ? formatDateParam(currentDate) : undefined;
+    // Sticky tasks: record completion on currentDate (today), not the original scheduled date
+    // Recurring tasks: always pass date
+    const dateParam = (isRecurring || isSticky) ? formatDateParam(currentDate) : undefined;
     const all = await tasksApi.toggle(task.id, dateParam);
     onUpdate(null, all);
   };
@@ -106,7 +108,7 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
       <div
         ref={setNodeRef}
         style={{ ...style, '--task-border-color': borderColor }}
-        className={`task-card ${isCompleted ? 'task-done' : ''} ${isDragging ? 'dragging' : ''} depth-${Math.min(depth, 3)} ${epic ? 'has-epic' : ''}`}
+        className={`task-card ${isCompleted ? 'task-done' : ''} ${isDragging ? 'dragging' : ''} depth-${Math.min(depth, 3)} ${epic ? 'has-epic' : ''} ${isSticky ? 'sticky' : ''}`}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >

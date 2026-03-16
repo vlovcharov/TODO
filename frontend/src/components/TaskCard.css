@@ -8,6 +8,15 @@
   position: relative;
 }
 
+/* Sticky tasks (weekly/monthly/yearly shown on every day of the period) */
+.task-card.sticky {
+  opacity: 0.7;
+  border-style: dashed;
+}
+.task-card.sticky:hover {
+  opacity: 1;
+}
+
 /* Subtask indentation — left border accent per depth level */
 .task-card.depth-1 {
   margin-left: 18px;
