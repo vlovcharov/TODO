@@ -144,6 +144,10 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
             {level.short}
           </span>
 
+          <span className="priority-icon" style={{ color: priority.color }} title={priority.label}>
+            {priority.icon}
+          </span>
+
           <span className={`task-title ${isCompleted ? 'completed' : ''}`}>
             {task.title}
             {isRecurring && (
@@ -157,10 +161,6 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
                 </span>
               );
             })()}
-          </span>
-
-          <span className="priority-icon" style={{ color: priority.color }} title={priority.label}>
-            {priority.icon}
           </span>
 
           <div className={`task-actions ${showActions ? 'visible' : ''}`}>
