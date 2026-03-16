@@ -34,39 +34,42 @@ public class RolloverService : BackgroundService
 
         if (meta.LastRolloverCheck.Date >= now.Date) return;
 
-        // Build list of every day we missed, from the day after last check up to and including today
         var lastChecked = DateOnly.FromDateTime(meta.LastRolloverCheck.Date);
-        var missedDays  = new List<DateOnly>();
-        for (var d = lastChecked.AddDays(1); d <= today; d = d.AddDays(1))
-            missedDays.Add(d);
+        var gapDays     = today.DayNumber - lastChecked.DayNumber;
 
-        _logger.LogInformation("Running catch-up rollover for {Count} day(s) ending {Date}", missedDays.Count, today);
+        _logger.LogInformation("Running catch-up rollover: {Days} day(s) since last check, up to {Date}", gapDays, today);
 
-        int totalRolled = 0;
+        var tasks      = await store.GetTasksAsync();
+        var toUpdate   = new List<TodoTask>();
+        var toAdd      = new List<TodoTask>();
+        int totalAdded = 0;
 
-        // Process each missed day in order so daily tasks chain correctly:
-        // Mon missed → copy to Tue, Tue missed → copy to Wed, ... → lands on today
-        foreach (var day in missedDays)
+        foreach (var task in tasks)
         {
-            var tasks    = await store.GetTasksAsync();   // re-fetch each day to pick up copies from previous iteration
-            var toUpdate = new List<TodoTask>();
-            var toAdd    = new List<TodoTask>();
+            // Skip recurring, already completed, already missed, subtasks, future/today tasks
+            if (task.IsRecurring)      continue;
+            if (task.IsCompleted)      continue;
+            if (task.IsMissed)         continue;
+            if (task.ParentId != null) continue;
+            if (task.ScheduledDate >= today) continue;
 
-            foreach (var task in tasks)
+            // Walk forward from the task's scheduled date one period at a time,
+            // creating a missed copy for each intermediate day/period,
+            // and a final active (non-missed) copy when we reach today.
+            task.IsMissed = true;
+            toUpdate.Add(task);
+
+            var prevDate   = task.ScheduledDate;
+            var originDate = task.OriginalScheduledDate ?? task.ScheduledDate;
+            var rollCount  = task.RolloverCount;
+
+            while (true)
             {
-                // Skip recurring, already completed, already missed, subtasks, future tasks
-                if (task.IsRecurring)      continue;
-                if (task.IsCompleted)      continue;
-                if (task.IsMissed)         continue;
-                if (task.ParentId != null) continue;
-                if (task.ScheduledDate >= day) continue;
+                var nextDate = GetNextPeriodDate(task.Level, prevDate, prevDate.AddDays(1));
+                if (nextDate == prevDate) break; // safety: no progress
 
-                var newDate = GetNextPeriodDate(task.Level, task.ScheduledDate, day);
-                if (newDate == task.ScheduledDate) continue;
-
-                // Mark original as missed on its date
-                task.IsMissed = true;
-                toUpdate.Add(task);
+                rollCount++;
+                var isLast = nextDate >= today;
 
                 var copy = new TodoTask
                 {
@@ -74,42 +77,44 @@ public class RolloverService : BackgroundService
                     Description           = task.Description,
                     Level                 = task.Level,
                     Priority              = task.Priority,
-                    ScheduledDate         = newDate,
-                    OriginalScheduledDate = task.OriginalScheduledDate ?? task.ScheduledDate,
-                    RolloverCount         = task.RolloverCount + 1,
+                    ScheduledDate         = isLast ? today : nextDate,
+                    OriginalScheduledDate = originDate,
+                    RolloverCount         = rollCount,
                     SortOrder             = task.SortOrder,
                     RecurrenceMask        = task.RecurrenceMask,
                     EpicId                = task.EpicId,
-                    // IsMissed on copy: missed if new date is still in the past relative to today
-                    IsMissed              = newDate < today,
+                    IsMissed              = !isLast,   // intermediate copies are missed; final copy is active (today)
                 };
                 toAdd.Add(copy);
-                totalRolled++;
+                totalAdded++;
+
+                if (isLast) break;
+                prevDate = nextDate;
             }
-
-            if (toUpdate.Count > 0)
-                await store.SaveTasksAsync(toUpdate);
-
-            foreach (var copy in toAdd)
-                await store.SaveTaskAsync(copy);
         }
 
-        if (totalRolled > 0)
-            _logger.LogInformation("Catch-up complete: rolled over {Count} task-days", totalRolled);
+        if (toUpdate.Count > 0)
+            await store.SaveTasksAsync(toUpdate);
+
+        foreach (var copy in toAdd)
+            await store.SaveTaskAsync(copy);
+
+        if (totalAdded > 0)
+            _logger.LogInformation("Catch-up complete: created {Count} task copies ({Missed} missed + 1 active per chain)",
+                totalAdded, totalAdded - toUpdate.Count);
 
         await store.UpdateLastRolloverAsync(now);
     }
 
-    // Returns the next scheduled date for a task given the current processing day.
-    // For Daily: always the next day (so it chains one step at a time).
-    // For Weekly/Monthly/Yearly: jump to the next period boundary.
+    // Given a task's current scheduled date, returns the next date it should appear on.
+    // Called with processingDay = scheduledDate + 1 day, so Daily advances one day at a time.
     private static DateOnly GetNextPeriodDate(TaskLevel level, DateOnly scheduled, DateOnly processingDay) =>
         level switch
         {
-            TaskLevel.Daily   => processingDay,                                                   // one day at a time
-            TaskLevel.Weekly  => GetNextMonday(processingDay),
-            TaskLevel.Monthly => new DateOnly(processingDay.Year, processingDay.Month, 1).AddMonths(1),
-            TaskLevel.Yearly  => new DateOnly(processingDay.Year + 1, 1, 1),
+            TaskLevel.Daily   => processingDay,                                                        // next calendar day
+            TaskLevel.Weekly  => GetNextMonday(scheduled),                                             // next Monday after scheduled
+            TaskLevel.Monthly => new DateOnly(scheduled.Year, scheduled.Month, 1).AddMonths(1),        // first of next month
+            TaskLevel.Yearly  => new DateOnly(scheduled.Year + 1, 1, 1),                               // first of next year
             _                 => scheduled
         };
 
