@@ -9,10 +9,12 @@ namespace TodoApp.Controllers;
 public class TasksController : ControllerBase
 {
     private readonly TaskService _taskService;
+    private readonly ILogger<TasksController> _logger;
 
-    public TasksController(TaskService taskService)
+    public TasksController(TaskService taskService, ILogger<TasksController> logger)
     {
         _taskService = taskService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -39,6 +41,8 @@ public class TasksController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateTaskRequest req)
     {
         var task = await _taskService.CreateTaskAsync(req);
+        _logger.LogInformation("Task created: [{Level}] \"{Title}\" (id={Id}, date={Date})",
+            task.Level, task.Title, task.Id, task.ScheduledDate);
         return CreatedAtAction(nameof(GetAll), new { id = task.Id }, task);
     }
 
@@ -47,6 +51,7 @@ public class TasksController : ControllerBase
     {
         var task = await _taskService.UpdateTaskAsync(id, req);
         if (task == null) return NotFound();
+        _logger.LogInformation("Task updated: \"{Title}\" (id={Id})", task.Title, task.Id);
         return Ok(task);
     }
 
@@ -55,7 +60,8 @@ public class TasksController : ControllerBase
     {
         var task = await _taskService.ToggleCompleteAsync(id, req?.Date);
         if (task == null) return NotFound();
-        // Return all tasks — toggling can cascade to parent/subtasks
+        _logger.LogInformation("Task toggled: \"{Title}\" → {State} (id={Id}, date={Date})",
+            task.Title, task.IsCompleted ? "done" : "undone", task.Id, req?.Date?.ToString() ?? "own date");
         var all = await _taskService.GetAllTasksAsync();
         return Ok(all);
     }
@@ -65,6 +71,7 @@ public class TasksController : ControllerBase
     {
         var ok = await _taskService.DeleteTaskAsync(id);
         if (!ok) return NotFound();
+        _logger.LogInformation("Task soft-deleted (id={Id})", id);
         return NoContent();
     }
 
@@ -72,6 +79,7 @@ public class TasksController : ControllerBase
     public async Task<IActionResult> Restore(string id)
     {
         await _taskService.RestoreTaskAsync(id);
+        _logger.LogInformation("Task restored (id={Id})", id);
         var all = await _taskService.GetAllTasksAsync();
         return Ok(all);
     }
@@ -81,6 +89,7 @@ public class TasksController : ControllerBase
     {
         var task = await _taskService.MoveTaskAsync(id, req);
         if (task == null) return NotFound();
+        _logger.LogInformation("Task moved: \"{Title}\" → {NewDate} (id={Id})", task.Title, req.NewDate, task.Id);
         return Ok(task);
     }
 
@@ -120,7 +129,13 @@ public class ConfigController : ControllerBase
 public class BackupController : ControllerBase
 {
     private readonly DataStore _store;
-    public BackupController(DataStore store) { _store = store; }
+    private readonly ILogger<BackupController> _logger;
+
+    public BackupController(DataStore store, ILogger<BackupController> logger)
+    {
+        _store = store;
+        _logger = logger;
+    }
 
     // ── Export ────────────────────────────────────────────────────────────────
 
@@ -128,6 +143,7 @@ public class BackupController : ControllerBase
     public async Task<IActionResult> Export([FromQuery] string format = "json")
     {
         var tasks = await _store.GetTasksAsync();
+        _logger.LogInformation("Export requested: format={Format}, tasks={Count}", format.ToLower(), tasks.Count);
 
         if (format.ToLower() == "csv")
         {
@@ -204,6 +220,7 @@ public class BackupController : ControllerBase
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Import failed: could not parse file {FileName}", file.FileName);
             return BadRequest($"Failed to parse file: {ex.Message}");
         }
 
@@ -215,6 +232,8 @@ public class BackupController : ControllerBase
         foreach (var task in toInsert)
             await _store.SaveTaskAsync(task);
 
+        _logger.LogInformation("Import complete: file={FileName}, imported={Imported}, skipped={Skipped}",
+            file.FileName, toInsert.Count, incoming.Count - toInsert.Count);
         return Ok(new { imported = toInsert.Count, skipped = incoming.Count - toInsert.Count });
     }
 

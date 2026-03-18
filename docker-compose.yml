@@ -29,6 +29,8 @@ services:
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=taskflow;Username=taskflow;Password=taskflow
     ports:
       - "0.0.0.0:8080:8080"
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       db:
         condition: service_healthy

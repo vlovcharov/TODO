@@ -1,9 +1,25 @@
 using Microsoft.EntityFrameworkCore;
+using Serilog;
+using Serilog.Events;
 using TodoApp.Data;
 using TodoApp.Models;
 using TodoApp.Services;
 
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("System", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File(
+        path: "/app/logs/taskflow-.log",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
+
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog();
 
 // ── Database ──────────────────────────────────────────────────────────────────
 var connStr = builder.Configuration.GetConnectionString("DefaultConnection")
