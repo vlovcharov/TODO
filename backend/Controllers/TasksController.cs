@@ -58,11 +58,9 @@ public class TasksController : ControllerBase
     [HttpPost("{id}/toggle")]
     public async Task<IActionResult> Toggle(string id, [FromBody] ToggleCompleteRequest? req = null)
     {
-        var task = await _taskService.ToggleCompleteAsync(id, req?.Date);
-        if (task == null) return NotFound();
-        _logger.LogInformation("Task toggled: \"{Title}\" → {State} (id={Id}, date={Date})",
-            task.Title, task.IsCompleted ? "done" : "undone", task.Id, req?.Date?.ToString() ?? "own date");
-        var all = await _taskService.GetAllTasksAsync();
+        var all = await _taskService.ToggleCompleteAsync(id, req?.Date);
+        if (all == null) return NotFound();
+        _logger.LogInformation("Task toggled (id={Id}, date={Date})", id, req?.Date?.ToString() ?? "own date");
         return Ok(all);
     }
 
