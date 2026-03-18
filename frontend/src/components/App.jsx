@@ -96,20 +96,13 @@ export default function App() {
     a.click(); URL.revokeObjectURL(url);
   };
 
-  const handleExportCsv = async () => {
-    const res = await backupApi.exportCsv();
-    const url = URL.createObjectURL(res.data);
-    const a = document.createElement('a'); a.href = url;
-    a.download = `taskflow-export-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
   const handleImport = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     backupApi.import(file).then(result => {
-      alert(`Import complete: ${result.imported} imported, ${result.skipped} skipped.`);
+      alert(`Import complete:\n• ${result.importedEpics} epics imported\n• ${result.importedTasks} tasks imported\n• ${result.skippedTasks} tasks skipped (already exist)`);
       loadTasks();
+      loadEpics();
     }).catch(err => alert(`Import failed: ${err.response?.data || err.message}`));
     e.target.value = '';
   };
@@ -199,11 +192,10 @@ export default function App() {
           <div className="topbar-right">
             <div className="topbar-actions">
               <div className="export-group">
-                <button className="btn-icon" title="Export JSON" onClick={handleExportJson}><Download size={15} /><span>JSON</span></button>
-                <button className="btn-icon" title="Export CSV" onClick={handleExportCsv}><Download size={15} /><span>CSV</span></button>
-                <label className="btn-icon" title="Import">
+                <button className="btn-icon" title="Export JSON" onClick={handleExportJson}><Download size={15} /><span>Export</span></button>
+                <label className="btn-icon" title="Import JSON">
                   <Upload size={15} /><span>Import</span>
-                  <input type="file" accept=".json,.csv" onChange={handleImport} style={{ display: 'none' }} />
+                  <input type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
                 </label>
               </div>
             </div>

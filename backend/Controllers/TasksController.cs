@@ -138,46 +138,24 @@ public class BackupController : ControllerBase
     // ── Export ────────────────────────────────────────────────────────────────
 
     [HttpGet("export")]
-    public async Task<IActionResult> Export([FromQuery] string format = "json")
+    public async Task<IActionResult> Export()
     {
         var tasks = await _store.GetTasksAsync();
-        _logger.LogInformation("Export requested: format={Format}, tasks={Count}", format.ToLower(), tasks.Count);
+        var epics = await _store.GetEpicsAsync();
 
-        if (format.ToLower() == "csv")
+        var payload = new { version = 2, epics, tasks };
+
+        var options = new System.Text.Json.JsonSerializerOptions
         {
-            var csv = new System.Text.StringBuilder();
-            csv.AppendLine("Id,Title,Description,Level,Priority,IsCompleted,ScheduledDate,RecurrenceMask,ParentId,RolloverCount,CreatedAt");
-            foreach (var t in tasks)
-            {
-                csv.AppendLine(string.Join(",",
-                    CsvEscape(t.Id),
-                    CsvEscape(t.Title),
-                    CsvEscape(t.Description ?? ""),
-                    t.Level.ToString(),
-                    t.Priority.ToString(),
-                    t.IsCompleted ? "true" : "false",
-                    t.ScheduledDate.ToString("yyyy-MM-dd"),
-                    t.RecurrenceMask.ToString(),
-                    CsvEscape(t.ParentId ?? ""),
-                    t.RolloverCount.ToString(),
-                    t.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss")
-                ));
-            }
-            var bytes = System.Text.Encoding.UTF8.GetBytes(csv.ToString());
-            return File(bytes, "text/csv", $"taskflow-export-{DateTime.Today:yyyy-MM-dd}.csv");
-        }
-        else
-        {
-            var options = new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-                Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
-            };
-            var json = System.Text.Json.JsonSerializer.Serialize(tasks, options);
-            var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-            return File(bytes, "application/json", $"taskflow-export-{DateTime.Today:yyyy-MM-dd}.json");
-        }
+            WriteIndented = true,
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        };
+        var json  = System.Text.Json.JsonSerializer.Serialize(payload, options);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+
+        _logger.LogInformation("Export: {TaskCount} tasks, {EpicCount} epics", tasks.Count, epics.Count);
+        return File(bytes, "application/json", $"taskflow-export-{DateTime.Today:yyyy-MM-dd}.json");
     }
 
     // ── Import ────────────────────────────────────────────────────────────────
@@ -188,108 +166,83 @@ public class BackupController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest("No file provided.");
 
-        var ext = Path.GetExtension(file.FileName).ToLower();
-        List<TodoTask> incoming;
+        if (!Path.GetExtension(file.FileName).Equals(".json", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Only .json files are supported.");
 
+        string content;
         try
         {
             using var stream = file.OpenReadStream();
             using var reader = new StreamReader(stream);
-            var content = await reader.ReadToEndAsync();
+            content = await reader.ReadToEndAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Import failed: could not read file {FileName}", file.FileName);
+            return BadRequest($"Could not read file: {ex.Message}");
+        }
 
-            if (ext == ".json")
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        };
+
+        List<TodoApp.Models.Epic> incomingEpics = new();
+        List<TodoTask> incomingTasks;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Array)
             {
-                var options = new System.Text.Json.JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
-                };
-                incoming = System.Text.Json.JsonSerializer.Deserialize<List<TodoTask>>(content, options)
-                    ?? new List<TodoTask>();
-            }
-            else if (ext == ".csv")
-            {
-                incoming = ParseCsv(content);
+                // v1 — plain array of tasks, no epics
+                incomingTasks = System.Text.Json.JsonSerializer.Deserialize<List<TodoTask>>(content, jsonOptions)
+                    ?? new();
+                // Clear epicId — referenced epics don't exist in this DB
+                foreach (var t in incomingTasks) t.EpicId = null;
+                _logger.LogInformation("Import: detected v1 format (no epics)");
             }
             else
             {
-                return BadRequest("Unsupported file type. Use .json or .csv");
+                // v2 — { version, epics, tasks }
+                incomingEpics = root.TryGetProperty("epics", out var ep)
+                    ? System.Text.Json.JsonSerializer.Deserialize<List<TodoApp.Models.Epic>>(ep.GetRawText(), jsonOptions) ?? new()
+                    : new();
+                incomingTasks = root.TryGetProperty("tasks", out var tk)
+                    ? System.Text.Json.JsonSerializer.Deserialize<List<TodoTask>>(tk.GetRawText(), jsonOptions) ?? new()
+                    : new();
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Import failed: could not parse file {FileName}", file.FileName);
+            _logger.LogWarning(ex, "Import failed: could not parse {FileName}", file.FileName);
             return BadRequest($"Failed to parse file: {ex.Message}");
         }
 
-        // Upsert — insert new, skip existing (matched by Id)
-        var existing = await _store.GetTasksAsync();
-        var existingIds = existing.Select(t => t.Id).ToHashSet();
-        var toInsert = incoming.Where(t => !existingIds.Contains(t.Id)).ToList();
+        // Upsert epics first (tasks may reference them)
+        var existingEpics  = await _store.GetEpicsAsync();
+        var existingEpicIds = existingEpics.Select(e => e.Id).ToHashSet();
+        int epicsImported  = 0;
+        foreach (var epic in incomingEpics.Where(e => !existingEpicIds.Contains(e.Id)))
+        {
+            await _store.SaveEpicAsync(epic);
+            epicsImported++;
+        }
 
+        // Upsert tasks
+        var existingTasks  = await _store.GetTasksAsync();
+        var existingTaskIds = existingTasks.Select(t => t.Id).ToHashSet();
+        var toInsert = incomingTasks.Where(t => !existingTaskIds.Contains(t.Id)).ToList();
         foreach (var task in toInsert)
             await _store.SaveTaskAsync(task);
 
-        _logger.LogInformation("Import complete: file={FileName}, imported={Imported}, skipped={Skipped}",
-            file.FileName, toInsert.Count, incoming.Count - toInsert.Count);
-        return Ok(new { imported = toInsert.Count, skipped = incoming.Count - toInsert.Count });
-    }
+        _logger.LogInformation("Import complete: file={FileName}, epics={Epics}, tasks={Tasks}, skipped={Skipped}",
+            file.FileName, epicsImported, toInsert.Count, incomingTasks.Count - toInsert.Count);
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private static string CsvEscape(string val)
-    {
-        if (val.Contains(',') || val.Contains('"') || val.Contains('\n'))
-            return $"\"{val.Replace("\"", "\"\"")}\"";
-        return val;
-    }
-
-    private static List<TodoTask> ParseCsv(string content)
-    {
-        var tasks = new List<TodoTask>();
-        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var line in lines.Skip(1)) // skip header
-        {
-            var cols = SplitCsvLine(line);
-            if (cols.Count < 11) continue;
-            tasks.Add(new TodoTask
-            {
-                Id              = cols[0],
-                Title           = cols[1],
-                Description     = string.IsNullOrEmpty(cols[2]) ? null : cols[2],
-                Level           = Enum.Parse<TodoApp.Models.TaskLevel>(cols[3]),
-                Priority        = Enum.Parse<TodoApp.Models.TaskPriority>(cols[4]),
-                IsCompleted     = cols[5] == "true",
-                ScheduledDate   = DateOnly.TryParse(cols[6], out var sd) ? sd : DateOnly.FromDateTime(DateTime.UtcNow.Date),
-                RecurrenceMask  = int.TryParse(cols[7], out var rm) ? rm : 0,
-                ParentId        = string.IsNullOrEmpty(cols[8]) ? null : cols[8],
-                RolloverCount   = int.TryParse(cols[9], out var rc) ? rc : 0,
-                CreatedAt       = DateTime.TryParse(cols[10], out var ca) ? ca : DateTime.UtcNow,
-            });
-        }
-        return tasks;
-    }
-
-    private static List<string> SplitCsvLine(string line)
-    {
-        var result = new List<string>();
-        var current = new System.Text.StringBuilder();
-        bool inQuotes = false;
-        for (int i = 0; i < line.Length; i++)
-        {
-            char c = line[i];
-            if (c == '"')
-            {
-                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
-                { current.Append('"'); i++; }
-                else inQuotes = !inQuotes;
-            }
-            else if (c == ',' && !inQuotes)
-            { result.Add(current.ToString()); current.Clear(); }
-            else current.Append(c);
-        }
-        result.Add(current.ToString().TrimEnd('\r'));
-        return result;
+        return Ok(new { importedEpics = epicsImported, importedTasks = toInsert.Count, skippedTasks = incomingTasks.Count - toInsert.Count });
     }
 }
 

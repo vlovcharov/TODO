@@ -20,8 +20,7 @@ export const configApi = {
 };
 
 export const backupApi = {
-  exportJson: () => api.get('/tasks/export?format=json', { responseType: 'blob' }),
-  exportCsv:  () => api.get('/tasks/export?format=csv',  { responseType: 'blob' }),
+  exportJson: () => api.get('/tasks/export', { responseType: 'blob' }),
   import: (file) => {
     const form = new FormData();
     form.append('file', file);
