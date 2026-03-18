@@ -115,17 +115,21 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
-        <div className="task-row">
+        <div
+          className="task-row"
+          draggable
+          onDragStart={e => {
+            // Don't initiate HTML5 drag from the grip handle — that's for dnd-kit reorder
+            if (e.target.closest('.drag-handle')) { e.preventDefault(); return; }
+            e.dataTransfer.setData('text/task-id', task.id);
+            e.dataTransfer.setData('text/task-title', task.title);
+            e.dataTransfer.effectAllowed = 'copy';
+          }}
+        >
           <div
             className="drag-handle"
             {...attributes}
             {...listeners}
-            draggable
-            onDragStart={e => {
-              e.dataTransfer.setData('text/task-id', task.id);
-              e.dataTransfer.setData('text/task-title', task.title);
-              // don't stopPropagation — dnd-kit needs to see pointer events separately
-            }}
           >
             <GripVertical size={14} />
           </div>
