@@ -232,10 +232,12 @@ public class BackupController : ControllerBase
             epicsImported++;
         }
 
-        // Upsert tasks
-        var existingTasks  = await _store.GetTasksAsync();
+        // Upsert tasks — parents must be inserted before subtasks
+        var existingTasks   = await _store.GetTasksAsync();
         var existingTaskIds = existingTasks.Select(t => t.Id).ToHashSet();
-        var toInsert = incomingTasks.Where(t => !existingTaskIds.Contains(t.Id)).ToList();
+        var toInsert = incomingTasks.Where(t => !existingTaskIds.Contains(t.Id))
+                                    .OrderBy(t => t.ParentId == null ? 0 : 1) // parents first
+                                    .ToList();
         foreach (var task in toInsert)
             await _store.SaveTaskAsync(task);
 
