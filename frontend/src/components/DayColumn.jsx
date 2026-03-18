@@ -53,9 +53,11 @@ export default function DayColumn({ date, allTasks, epics = [], sortBy = 'manual
   ].sort((a, b) => a.sortOrder - b.sortOrder);
 
   const doneTasks   = dayTasks.filter(t => isCompletedOnDate(t, date));
-  const missedTasks = dayTasks.filter(t => t.isMissed && !isCompletedOnDate(t, date));
+  const missedTasks = dayTasks.filter(t =>
+    !isCompletedOnDate(t, date) && (t.isMissed || (t._sticky && isPast))
+  );
   const activeTasks = sortTasks(
-    dayTasks.filter(t => !isCompletedOnDate(t, date) && !t.isMissed),
+    dayTasks.filter(t => !isCompletedOnDate(t, date) && !t.isMissed && !(t._sticky && isPast)),
     sortBy
   );
   const activeTaskIds = activeTasks.map(t => t.id);

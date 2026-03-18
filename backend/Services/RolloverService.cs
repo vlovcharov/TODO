@@ -72,6 +72,9 @@ public class RolloverService : BackgroundService
                 var nextDate = GetNextPeriodDate(task.Level, prevDate, prevDate.AddDays(1));
                 if (nextDate == prevDate) break; // safety: no progress
 
+                // Never schedule a copy beyond today
+                if (nextDate > today) nextDate = today;
+
                 rollCount++;
                 var isLast = nextDate >= today;
 

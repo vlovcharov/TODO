@@ -54,6 +54,11 @@ export function isRecurringActiveOnDate(task, date) {
     : new Date(task.createdAt);
   if (date < from) return false;
 
+  // Don't show on future dates
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(date); d.setHours(0, 0, 0, 0);
+  if (d > today) return false;
+
   // DayOfWeek mapping to our bit order (Mon=0…Sun=6)
   const jsDay = date.getDay(); // 0=Sun,1=Mon…6=Sat
   const bit = jsDay === 0 ? 64 : 1 << (jsDay - 1); // Sun→bit6, Mon→bit0…
@@ -131,6 +136,11 @@ export function isTaskStickyOnDate(task, date) {
     ? new Date(task.scheduledDate + 'T00:00:00')
     : null;
   if (!scheduledDate) return false;
+
+  // Only stick up to and including today — not on future dates
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const dateNorm = new Date(date); dateNorm.setHours(0, 0, 0, 0);
+  if (dateNorm > today) return false;
 
   // Only stick on days AFTER the scheduled date (don't duplicate on creation day)
   if (date <= scheduledDate) return false;
