@@ -12,6 +12,7 @@ export const tasksApi = {
   restore: (id) => api.post(`/tasks/${id}/restore`).then(r => r.data),
   move: (id, newDate, newSortOrder) => api.post(`/tasks/${id}/move`, { newDate, newSortOrder }).then(r => r.data),
   reorder: (taskIds) => api.post('/tasks/reorder', { taskIds }),
+  moveToTop: (id) => api.post(`/tasks/${id}/top`).then(r => r.data),
 };
 
 export const configApi = {

@@ -200,6 +200,30 @@ public class TaskService
         }
         await _store.SaveTasksAsync(toUpdate);
     }
+
+    public async Task MoveToTopAsync(string id)
+    {
+        var task = await _store.GetTaskAsync(id);
+        if (task == null) return;
+
+        // Find all sibling tasks on the same date (same scheduledDate, no parent)
+        var all = await _store.GetTasksAsync();
+        var siblings = all
+            .Where(t => t.ParentId == null && t.ScheduledDate == task.ScheduledDate && t.Id != id)
+            .OrderBy(t => t.SortOrder)
+            .ToList();
+
+        // Assign sortOrder: this task = 0, rest = 1..n
+        task.SortOrder = 0;
+        await _store.SaveTaskAsync(task);
+
+        for (int i = 0; i < siblings.Count; i++)
+        {
+            siblings[i].SortOrder = i + 1;
+        }
+        if (siblings.Count > 0)
+            await _store.SaveTasksAsync(siblings);
+    }
 }
 
 // ── Request DTOs ──────────────────────────────────────────────────────────────

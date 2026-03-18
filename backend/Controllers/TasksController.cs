@@ -91,6 +91,15 @@ public class TasksController : ControllerBase
         return Ok(task);
     }
 
+    [HttpPost("{id}/top")]
+    public async Task<IActionResult> MoveToTop(string id)
+    {
+        await _taskService.MoveToTopAsync(id);
+        _logger.LogInformation("Task moved to top (id={Id})", id);
+        var all = await _taskService.GetAllTasksAsync();
+        return Ok(all);
+    }
+
     [HttpPost("reorder")]
     public async Task<IActionResult> Reorder([FromBody] ReorderRequest req)
     {

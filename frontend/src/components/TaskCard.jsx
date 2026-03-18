@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ChevronDown, ChevronRight, Plus, Trash2, GripVertical, ArrowRight, Pencil, CalendarClock } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Trash2, GripVertical, ArrowRight, Pencil, CalendarClock, ChevronsUp } from 'lucide-react';
 import { LEVELS, PRIORITIES, isCompletedOnDate, formatDateParam, getNextDay, getNextPeriod, recurrenceLabel } from '../constants';
 import { tasksApi } from '../api';
 import CreateTaskModal from './CreateTaskModal';
@@ -53,6 +53,20 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
   const [expanded, setExpanded] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState(null); // { x, y }
+  const ctxRef = useRef(null);
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = (e) => {
+      if (ctxRef.current && !ctxRef.current.contains(e.target)) setCtxMenu(null);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setCtxMenu(null); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', onKey); };
+  }, [ctxMenu]);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id });
@@ -106,6 +120,12 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
     onUpdate(updated);
   };
 
+  const handleMoveToTop = async () => {
+    setCtxMenu(null);
+    const all = await tasksApi.moveToTop(task.id);
+    onUpdate(null, all);
+  };
+
   return (
     <>
       <div
@@ -114,6 +134,7 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
         className={`task-card ${isCompleted ? 'task-done' : ''} ${isDragging ? 'dragging' : ''} depth-${Math.min(depth, 3)} ${epic ? 'has-epic' : ''} ${isSticky ? 'sticky' : ''}`}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
+        onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
       >
         <div
           className="task-row"
@@ -181,6 +202,11 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
                 <Pencil size={13} />
               </button>
             )}
+            {!task.isMissed && (
+              <button className="action-btn" onClick={handleMoveToTop} title="Move to top">
+                <ChevronsUp size={13} />
+              </button>
+            )}
             {!isRecurring && (
               <>
                 <button className="action-btn" onClick={handleMoveTomorrow} title="Move to tomorrow">
@@ -235,6 +261,51 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
           </div>
         )}
       </div>
+
+      {/* Context menu */}
+      {ctxMenu && (
+        <div
+          ref={ctxRef}
+          className="task-context-menu"
+          style={{ top: ctxMenu.y, left: ctxMenu.x }}
+        >
+          {!task.isMissed && (
+            <button className="ctx-item" onClick={() => { setCtxMenu(null); setEditing(true); }}>
+              <Pencil size={13} /> Edit
+            </button>
+          )}
+          {!task.isMissed && (
+            <button className="ctx-item" onClick={handleMoveToTop}>
+              <ChevronsUp size={13} /> Move to top
+            </button>
+          )}
+          {!isRecurring && (
+            <>
+              <button className="ctx-item" onClick={() => { setCtxMenu(null); handleMoveTomorrow(); }}>
+                <ArrowRight size={13} /> Move to tomorrow
+              </button>
+              {task.level !== 'Daily' && (
+                <button className="ctx-item" onClick={() => { setCtxMenu(null); handleMoveNextPeriod(); }}>
+                  <CalendarClock size={13} /> Move to next period
+                </button>
+              )}
+            </>
+          )}
+          {!task.isMissed && (
+            <button className="ctx-item" onClick={() => { setCtxMenu(null); onCreate({ parentId: task.id, level: task.level, scheduledDate: task.scheduledDate }); }}>
+              <Plus size={13} /> Add subtask
+            </button>
+          )}
+          {!isPast && !task.isMissed && (
+            <>
+              <div className="ctx-divider" />
+              <button className="ctx-item danger" onClick={() => { setCtxMenu(null); handleDelete(); }}>
+                <Trash2 size={13} /> Delete
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {editing && (
         <CreateTaskModal
