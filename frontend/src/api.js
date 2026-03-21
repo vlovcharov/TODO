@@ -13,6 +13,7 @@ export const tasksApi = {
   move:      (id, newDate, newSortOrder) => api.post(`/tasks/${id}/move`, { newDate, newSortOrder }).then(r => r.data),
   reorder:   (taskIds)                   => api.post('/tasks/reorder', { taskIds }),
   moveToTop: (id, date)                  => api.post(`/tasks/${id}/top`, { date }).then(r => r.data),
+  catchUp:   ()                          => api.post('/tasks/catchup').then(r => r.data),
 };
 
 export const configApi = {

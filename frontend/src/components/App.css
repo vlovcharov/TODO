@@ -29,6 +29,33 @@
   padding: 0 4px;
 }
 
+.app-version {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-faint);
+  margin-left: auto;
+}
+
+.sidebar-catchup-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--surface2);
+  color: var(--text-muted);
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background var(--transition), color var(--transition);
+  border: 1px solid var(--border);
+}
+
+.sidebar-catchup-btn:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .sidebar-views {
   display: flex;
   flex-direction: column;

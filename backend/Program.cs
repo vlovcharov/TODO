@@ -58,7 +58,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<DataStore>();
 builder.Services.AddScoped<TaskService>();
-builder.Services.AddHostedService<RolloverService>();
+builder.Services.AddScoped<RolloverService>();
 
 var app = builder.Build();
 

@@ -8,6 +8,8 @@ import CreateTaskModal from '../components/CreateTaskModal';
 import StatsPanel from '../components/StatsPanel';
 import './App.css';
 
+export const APP_VERSION = 'v0.32';
+
 export const SORT_OPTIONS = [
   { value: 'manual',    label: 'Manual order' },
   { value: 'urgency',   label: 'By urgency' },
@@ -97,6 +99,17 @@ export default function App() {
     loadTasks();
   }, [undoToast, loadTasks]);
 
+  const handleCatchUp = async () => {
+    const result = await tasksApi.catchUp();
+    if (result.rolled === 0 && result.missed === 0) {
+      alert('Rollover е вече актуален за днес.');
+    } else {
+      alert(`Catch-up завършен:\n• ${result.missed} задачи маркирани като пропуснати\n• ${result.rolled} нови копия създадени`);
+      loadTasks();
+      loadEpics();
+    }
+  };
+
   const handleCreate = useCallback((opts) => { setModal(opts); }, []);
   const handleCreated = useCallback(() => { loadTasks(); loadEpics(); }, [loadTasks, loadEpics]);
 
@@ -152,6 +165,7 @@ export default function App() {
         <div className="sidebar-logo">
           <Calendar size={20} />
           <span>TaskFlow</span>
+          <span className="app-version">{APP_VERSION}</span>
         </div>
 
         <nav className="sidebar-views">
@@ -165,6 +179,10 @@ export default function App() {
         <button className="sidebar-new-btn" onClick={() => setModal({ scheduledDate: anchor })}>
           <Plus size={16} />
           New Task
+        </button>
+
+        <button className="sidebar-catchup-btn" onClick={handleCatchUp} title="Process missed tasks since last session">
+          ↻ Catch-up rollover
         </button>
 
         <div className="sidebar-section">

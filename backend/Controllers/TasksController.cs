@@ -17,6 +17,15 @@ public class TasksController : ControllerBase
         _logger = logger;
     }
 
+    [HttpPost("catchup")]
+    public async Task<IActionResult> CatchUp()
+    {
+        var rollover = HttpContext.RequestServices.GetRequiredService<RolloverService>();
+        var (rolled, missed) = await rollover.DoRolloverAsync();
+        _logger.LogInformation("Manual catch-up triggered: {Rolled} copies created, {Missed} tasks marked missed", rolled, missed);
+        return Ok(new { rolled, missed });
+    }
+
     [HttpGet("day")]
     public async Task<IActionResult> GetDay([FromQuery] string date)
     {

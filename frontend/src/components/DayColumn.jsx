@@ -57,11 +57,21 @@ export default function DayColumn({ date, allTasks, epics = [], sortBy = 'manual
   }
 
   const doneTasks   = dayTasks.filter(t => isCompletedOnDate(t, date));
-  const missedTasks = dayTasks.filter(t =>
-    !isCompletedOnDate(t, date) && (t.isMissed || (t._sticky && isPast))
-  );
+  const missedTasks = dayTasks.filter(t => {
+    if (isCompletedOnDate(t, date)) return false;
+    if (t.isMissed) return true;
+    if (t._sticky && isPast) return true;
+    if (isPast && (t.recurrenceMask ?? 0) !== 0) return true; // recurring not done on past day
+    return false;
+  });
   const activeTasks = sortTasks(
-    dayTasks.filter(t => !isCompletedOnDate(t, date) && !t.isMissed && !(t._sticky && isPast)),
+    dayTasks.filter(t => {
+      if (isCompletedOnDate(t, date)) return false;
+      if (t.isMissed) return false;
+      if (t._sticky && isPast) return false;
+      if (isPast && (t.recurrenceMask ?? 0) !== 0) return false;
+      return true;
+    }),
     sortBy
   );
   const activeTaskIds = activeTasks.map(t => t.id);

@@ -2,64 +2,50 @@ using TodoApp.Models;
 
 namespace TodoApp.Services;
 
-public class RolloverService : BackgroundService
+public class RolloverService
 {
-    private readonly IServiceProvider _services;
+    private readonly DataStore _store;
     private readonly ILogger<RolloverService> _logger;
 
-    public RolloverService(IServiceProvider services, ILogger<RolloverService> logger)
+    public RolloverService(DataStore store, ILogger<RolloverService> logger)
     {
-        _services = services;
+        _store = store;
         _logger = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task<(int rolled, int missed)> DoRolloverAsync()
     {
-        await DoRolloverAsync();
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
-            await DoRolloverAsync();
-        }
-    }
-
-    private async Task DoRolloverAsync()
-    {
-        using var scope = _services.CreateScope();
-        var store = scope.ServiceProvider.GetRequiredService<DataStore>();
-
-        var meta  = await store.GetMetaAsync();
+        var meta  = await _store.GetMetaAsync();
         var now   = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(now);
 
-        if (meta.LastRolloverCheck.Date >= now.Date) return;
+        if (meta.LastRolloverCheck.Date >= now.Date)
+        {
+            _logger.LogInformation("Rollover skipped — already ran today ({Date})", today);
+            return (0, 0);
+        }
 
         var lastChecked = DateOnly.FromDateTime(meta.LastRolloverCheck.Date);
         var gapDays     = today.DayNumber - lastChecked.DayNumber;
 
         _logger.LogInformation("Running catch-up rollover: {Days} day(s) since last check, up to {Date}", gapDays, today);
 
-        var tasks      = await store.GetTasksAsync();
+        var tasks      = await _store.GetTasksAsync();
         var toUpdate   = new List<TodoTask>();
         var toAdd      = new List<TodoTask>();
         int totalAdded = 0;
 
         foreach (var task in tasks)
         {
-            // Skip recurring, already completed, already missed, subtasks, future/today tasks
             if (task.IsRecurring)      continue;
             if (task.IsCompleted)      continue;
             if (task.IsMissed)         continue;
             if (task.ParentId != null) continue;
             if (task.ScheduledDate >= today) continue;
 
-            // For weekly/monthly/yearly: if completed anywhere within the period, don't roll over
             if (task.Level != TaskLevel.Daily && IsCompletedInPeriod(task, today))
                 continue;
 
-            // Walk forward from the task's scheduled date one period at a time,
-            // creating a missed copy for each intermediate day/period,
-            // and a final active (non-missed) copy when we reach today.
             task.IsMissed = true;
             toUpdate.Add(task);
 
@@ -70,9 +56,7 @@ public class RolloverService : BackgroundService
             while (true)
             {
                 var nextDate = GetNextPeriodDate(task.Level, prevDate, prevDate.AddDays(1));
-                if (nextDate == prevDate) break; // safety: no progress
-
-                // Never schedule a copy beyond today
+                if (nextDate == prevDate) break;
                 if (nextDate > today) nextDate = today;
 
                 rollCount++;
@@ -90,7 +74,7 @@ public class RolloverService : BackgroundService
                     SortOrder             = task.SortOrder,
                     RecurrenceMask        = task.RecurrenceMask,
                     EpicId                = task.EpicId,
-                    IsMissed              = !isLast,   // intermediate copies are missed; final copy is active (today)
+                    IsMissed              = !isLast,
                 };
                 toAdd.Add(copy);
                 totalAdded++;
@@ -101,16 +85,16 @@ public class RolloverService : BackgroundService
         }
 
         if (toUpdate.Count > 0)
-            await store.SaveTasksAsync(toUpdate);
+            await _store.SaveTasksAsync(toUpdate);
 
         foreach (var copy in toAdd)
-            await store.SaveTaskAsync(copy);
+            await _store.SaveTaskAsync(copy);
 
         if (totalAdded > 0)
-            _logger.LogInformation("Catch-up complete: created {Count} task copies ({Missed} missed + 1 active per chain)",
-                totalAdded, totalAdded - toUpdate.Count);
+            _logger.LogInformation("Catch-up complete: {Count} task copies created", totalAdded);
 
-        await store.UpdateLastRolloverAsync(now);
+        await _store.UpdateLastRolloverAsync(now);
+        return (totalAdded, toUpdate.Count);
     }
 
     // Given a task's current scheduled date, returns the next date it should appear on.
