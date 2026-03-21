@@ -11,16 +11,16 @@ export function DayView({ anchor, tasks, epics, sortBy, onUpdate, onDelete, onCr
     <div className="view-day">
       <EpicsPanel
         epics={epics}
-        tasks={tasks}
         currentDate={anchor}
         onEpicsChange={onEpicsChange}
-        onTasksChange={() => onUpdate(null)}
+        onTasksChange={onUpdate}
       />
       <DayColumn
         date={anchor}
         allTasks={tasks}
         epics={epics}
         sortBy={sortBy}
+        preFiltered
         onUpdate={onUpdate}
         onDelete={onDelete}
         onCreate={onCreate}

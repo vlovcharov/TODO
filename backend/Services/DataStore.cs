@@ -26,6 +26,124 @@ public class DataStore
             .ToListAsync();
     }
 
+    /// <summary>Tasks visible on a specific day: scheduled on that date, recurring active, or sticky.</summary>
+    public async Task<List<TodoTask>> GetTasksForDayAsync(DateOnly date)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var all = await db.Tasks
+            .Where(t => t.DeletedAt == null)
+            .Include(t => t.Subtasks.Where(s => s.DeletedAt == null))
+            .Include(t => t.TaskCompletions)
+            .AsNoTracking()
+            .ToListAsync();
+
+        // Return top-level tasks visible on this day + their subtasks
+        var parentIds = all
+            .Where(t => t.ParentId == null && IsVisibleOnDay(t, date))
+            .Select(t => t.Id)
+            .ToHashSet();
+
+        return all
+            .Where(t => t.ParentId == null ? IsVisibleOnDay(t, date) : parentIds.Contains(t.ParentId))
+            .OrderBy(t => t.SortOrder)
+            .ToList();
+    }
+
+    /// <summary>Tasks visible in a date range: scheduled in range, recurring active on any day, or sticky.</summary>
+    public async Task<List<TodoTask>> GetTasksForRangeAsync(DateOnly from, DateOnly to)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var all = await db.Tasks
+            .Where(t => t.DeletedAt == null)
+            .Include(t => t.Subtasks.Where(s => s.DeletedAt == null))
+            .Include(t => t.TaskCompletions)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return all.Where(t =>
+        {
+            if (t.ParentId != null) return false;
+            if (t.RecurrenceMask != 0)
+            {
+                for (var d = from; d <= to; d = d.AddDays(1))
+                    if (RecurrenceDays.IsActiveOn(t.RecurrenceMask, d)) return true;
+                return false;
+            }
+            if (t.ScheduledDate >= from && t.ScheduledDate <= to) return true;
+            return IsStickyInRange(t, from, to);
+        }).OrderBy(t => t.SortOrder).ToList();
+    }
+
+    /// <summary>Epics with embedded tasks: active (not missed), recurring active today, sticky in period, or scheduled today/future. No completed tasks excluded.</summary>
+    public async Task<List<Epic>> GetEpicsWithTasksAsync(DateOnly today)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var epics = await db.Epics.AsNoTracking().ToListAsync();
+        var allTasks = await db.Tasks
+            .Where(t => t.DeletedAt == null && t.EpicId != null && !t.IsMissed)
+            .Include(t => t.TaskCompletions)
+            .AsNoTracking()
+            .ToListAsync();
+
+        foreach (var epic in epics)
+        {
+            epic.Tasks = allTasks.Where(t => t.EpicId == epic.Id && (
+                (t.RecurrenceMask != 0 && RecurrenceDays.IsActiveOn(t.RecurrenceMask, today)) ||
+                IsSticky(t, today) ||
+                t.ScheduledDate >= today
+            )).ToList();
+        }
+        return epics;
+    }
+
+    // ── Visibility helpers ────────────────────────────────────────────────────
+
+    private static bool IsVisibleOnDay(TodoTask t, DateOnly date)
+    {
+        if (t.RecurrenceMask != 0) return RecurrenceDays.IsActiveOn(t.RecurrenceMask, date);
+        if (t.ScheduledDate == date) return true;
+        return IsSticky(t, date);
+    }
+
+    private static bool IsSticky(TodoTask t, DateOnly date)
+    {
+        if (t.RecurrenceMask != 0) return false;
+        if (t.Level == TaskLevel.Daily) return false;
+        if (t.IsMissed) return false;
+        if (t.ScheduledDate >= date) return false;
+
+        var (start, end) = GetPeriodBounds(t.Level, date);
+        if (t.ScheduledDate < start || t.ScheduledDate > end) return false;
+
+        return !t.TaskCompletions.Any(c => c.Date >= start && c.Date <= end);
+    }
+
+    private static bool IsStickyInRange(TodoTask t, DateOnly from, DateOnly to)
+    {
+        if (t.RecurrenceMask != 0) return false;
+        if (t.Level == TaskLevel.Daily) return false;
+        if (t.IsMissed) return false;
+        for (var d = from; d <= to; d = d.AddDays(1))
+            if (IsSticky(t, d)) return true;
+        return false;
+    }
+
+    private static (DateOnly start, DateOnly end) GetPeriodBounds(TaskLevel level, DateOnly date) =>
+        level switch
+        {
+            TaskLevel.Weekly  => (GetMonday(date), GetMonday(date).AddDays(6)),
+            TaskLevel.Monthly => (new DateOnly(date.Year, date.Month, 1),
+                                  new DateOnly(date.Year, date.Month, 1).AddMonths(1).AddDays(-1)),
+            TaskLevel.Yearly  => (new DateOnly(date.Year, 1, 1), new DateOnly(date.Year, 12, 31)),
+            _                 => (date, date)
+        };
+
+    private static DateOnly GetMonday(DateOnly date)
+    {
+        int days = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return date.AddDays(-days);
+    }
+
     public async Task<TodoTask?> GetTaskAsync(string id)
     {
         await using var db = await _factory.CreateDbContextAsync();

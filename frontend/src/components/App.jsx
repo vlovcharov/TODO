@@ -33,45 +33,57 @@ export function sortTasks(tasks, sortBy) {
 }
 
 export default function App() {
-  const [view, setView]       = useState('Day');
-  const [anchor, setAnchor]   = useState(new Date());
-  const [tasks, setTasks]     = useState([]);
-  const [epics, setEpics]     = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal]     = useState(null);
-  const [sortBy, setSortBy]   = useState('manual');
-  const [undoToast, setUndoToast] = useState(null); // { id, title, timer }
+  const [view, setView]           = useState('Day');
+  const [anchor, setAnchor]       = useState(new Date());
+  const [tasks, setTasks]         = useState([]);
+  const [epics, setEpics]         = useState([]);
+  const [statsTasks, setStatsTasks] = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [modal, setModal]         = useState(null);
+  const [sortBy, setSortBy]       = useState('manual');
+  const [undoToast, setUndoToast] = useState(null);
   const undoTimerRef = useRef(null);
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async (currentView, currentAnchor) => {
     try {
-      const all = await tasksApi.getAll();
-      setTasks(all);
+      const v = currentView  ?? view;
+      const a = currentAnchor ?? anchor;
+      const { from, to } = getViewRange(v, a);
+      const fromStr = formatDateParam(from);
+      const toStr   = formatDateParam(to);
+
+      const data = v === 'Day'
+        ? await tasksApi.getDay(fromStr)
+        : await tasksApi.getRange(fromStr, toStr);
+      setTasks(data);
+
+      // Stats: last 30 days
+      const statsFrom = formatDateParam(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+      const statsTo   = formatDateParam(new Date());
+      setStatsTasks(await tasksApi.getRange(statsFrom, statsTo));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [view, anchor]);
 
-  const loadEpics = useCallback(async () => {
-    const all = await epicsApi.getAll();
-    setEpics(all);
-  }, []);
+  const loadEpics = useCallback(async (currentAnchor) => {
+    const a = currentAnchor ?? anchor;
+    setEpics(await epicsApi.getAll(formatDateParam(a)));
+  }, [anchor]);
 
-  useEffect(() => { loadTasks(); loadEpics(); }, [loadTasks, loadEpics]);
+  // Initial load
+  useEffect(() => { loadTasks(); loadEpics(); }, []);
 
-  const handleUpdate = useCallback((updated, allTasks) => {
-    if (allTasks) { setTasks(allTasks); return; }
-    if (!updated) { loadTasks(); return; }
-    setTasks(prev => {
-      const idx = prev.findIndex(t => t.id === updated.id);
-      if (idx >= 0) { const n = [...prev]; n[idx] = updated; return n; }
-      return [...prev, updated];
-    });
-  }, [loadTasks]);
+  // Reload on view/anchor change
+  useEffect(() => { loadTasks(view, anchor); loadEpics(anchor); }, [view, anchor]);
+
+  const handleUpdate = useCallback(() => {
+    loadTasks();
+    loadEpics();
+  }, [loadTasks, loadEpics]);
 
   const handleDelete = useCallback((id, title) => {
     setTasks(prev => prev.filter(t => t.id !== id && t.parentId !== id));
-    // Show undo toast for 6 seconds
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     setUndoToast({ id, title });
     undoTimerRef.current = setTimeout(() => setUndoToast(null), 6000);
@@ -81,12 +93,12 @@ export default function App() {
     if (!undoToast) return;
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     setUndoToast(null);
-    const all = await tasksApi.restore(undoToast.id);
-    setTasks(all);
-  }, [undoToast]);
+    await tasksApi.restore(undoToast.id);
+    loadTasks();
+  }, [undoToast, loadTasks]);
 
   const handleCreate = useCallback((opts) => { setModal(opts); }, []);
-  const handleCreated = useCallback(() => { loadTasks(); }, [loadTasks]);
+  const handleCreated = useCallback(() => { loadTasks(); loadEpics(); }, [loadTasks, loadEpics]);
 
   const handleExportJson = async () => {
     const res = await backupApi.exportJson();
@@ -132,7 +144,7 @@ export default function App() {
     }
   };
 
-  const viewProps = { anchor, tasks, epics, sortBy, onUpdate: handleUpdate, onDelete: handleDelete, onCreate: handleCreate, onEpicsChange: loadEpics };
+  const viewProps = { anchor, tasks, epics, sortBy, onUpdate: handleUpdate, onDelete: handleDelete, onCreate: handleCreate, onEpicsChange: () => loadEpics() };
 
   return (
     <div className="app">
@@ -178,7 +190,7 @@ export default function App() {
           ))}
         </div>
 
-        <StatsPanel tasks={tasks} anchor={anchor} />
+        <StatsPanel tasks={statsTasks} anchor={anchor} />
       </aside>
 
       <main className="main">

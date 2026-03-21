@@ -54,7 +54,6 @@ public class Epic
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    [JsonIgnore]
     public ICollection<TodoTask> Tasks { get; set; } = new List<TodoTask>();
 }
 

@@ -85,11 +85,9 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
   const borderColor = epic ? epic.color : level.color;
 
   const handleToggle = async () => {
-    // Sticky tasks: record completion on currentDate (today), not the original scheduled date
-    // Recurring tasks: always pass date
     const dateParam = (isRecurring || isSticky) ? formatDateParam(currentDate) : undefined;
-    const all = await tasksApi.toggle(task.id, dateParam);
-    onUpdate(null, all);
+    await tasksApi.toggle(task.id, dateParam);
+    onUpdate();
   };
 
   const handleDelete = async () => {
@@ -100,14 +98,12 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
     onDelete(task.id, task.title);
   };
 
-  // Move to tomorrow (always safe, no confirmation needed)
   const handleMoveTomorrow = async () => {
     const tomorrow = getNextDay(new Date(task.scheduledDate + 'T00:00:00'));
-    const updated  = await tasksApi.move(task.id, formatDateParam(tomorrow));
-    onUpdate(updated);
+    await tasksApi.move(task.id, formatDateParam(tomorrow));
+    onUpdate();
   };
 
-  // Move to next natural period (week/month/year) — requires confirmation for non-daily
   const handleMoveNextPeriod = async () => {
     const taskDate = new Date(task.scheduledDate + 'T00:00:00');
     const nextDate = getNextPeriod(task.level, taskDate);
@@ -116,14 +112,14 @@ export default function TaskCard({ task, allTasks, currentDate, epics = [], isPa
       const levelLabel = LEVELS[task.level]?.label ?? task.level;
       if (!confirm(`Move "${task.title}" to next ${levelLabel.toLowerCase()} period?\nThis will push it ${daysDiff} days forward.`)) return;
     }
-    const updated = await tasksApi.move(task.id, formatDateParam(nextDate));
-    onUpdate(updated);
+    await tasksApi.move(task.id, formatDateParam(nextDate));
+    onUpdate();
   };
 
   const handleMoveToTop = async () => {
     setCtxMenu(null);
-    const all = await tasksApi.moveToTop(task.id);
-    onUpdate(null, all);
+    await tasksApi.moveToTop(task.id, formatDateParam(currentDate));
+    onUpdate();
   };
 
   return (

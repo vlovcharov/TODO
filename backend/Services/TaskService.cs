@@ -14,15 +14,14 @@ public class TaskService
     public async Task<List<TodoTask>> GetAllTasksAsync() =>
         await _store.GetTasksAsync();
 
-    public async Task<List<TodoTask>> GetTasksForRangeAsync(DateOnly from, DateOnly to)
-    {
-        var tasks = await _store.GetTasksAsync();
-        return tasks.Where(t =>
-        {
-            if (t.IsRecurring) return true;
-            return t.ScheduledDate >= from && t.ScheduledDate <= to;
-        }).OrderBy(t => t.SortOrder).ToList();
-    }
+    public async Task<List<TodoTask>> GetTasksForDayAsync(DateOnly date) =>
+        await _store.GetTasksForDayAsync(date);
+
+    public async Task<List<TodoTask>> GetTasksForRangeAsync(DateOnly from, DateOnly to) =>
+        await _store.GetTasksForRangeAsync(from, to);
+
+    public async Task<List<Epic>> GetEpicsWithTasksAsync(DateOnly today) =>
+        await _store.GetEpicsWithTasksAsync(today);
 
     public async Task<TodoTask> CreateTaskAsync(CreateTaskRequest req)
     {
@@ -201,26 +200,27 @@ public class TaskService
         await _store.SaveTasksAsync(toUpdate);
     }
 
-    public async Task MoveToTopAsync(string id)
+    public async Task MoveToTopAsync(string id, DateOnly date)
     {
         var task = await _store.GetTaskAsync(id);
         if (task == null) return;
 
-        // Find all sibling tasks on the same date (same scheduledDate, no parent)
         var all = await _store.GetTasksAsync();
+        // All top-level tasks visible on this day
         var siblings = all
-            .Where(t => t.ParentId == null && t.ScheduledDate == task.ScheduledDate && t.Id != id)
+            .Where(t => t.ParentId == null && t.Id != id && (
+                t.ScheduledDate == date ||
+                (t.RecurrenceMask != 0 && RecurrenceDays.IsActiveOn(t.RecurrenceMask, date))
+            ))
             .OrderBy(t => t.SortOrder)
             .ToList();
 
-        // Assign sortOrder: this task = 0, rest = 1..n
         task.SortOrder = 0;
         await _store.SaveTaskAsync(task);
 
         for (int i = 0; i < siblings.Count; i++)
-        {
             siblings[i].SortOrder = i + 1;
-        }
+
         if (siblings.Count > 0)
             await _store.SaveTasksAsync(siblings);
     }
@@ -253,3 +253,4 @@ public record UpdateTaskRequest(
 public record MoveTaskRequest(DateOnly NewDate, int? NewSortOrder);
 public record ReorderRequest(List<string> TaskIds);
 public record ToggleCompleteRequest(DateOnly? Date);
+public record MoveToTopRequest(DateOnly Date);

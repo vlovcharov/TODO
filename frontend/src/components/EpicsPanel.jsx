@@ -54,12 +54,10 @@ function EpicForm({ epic, onSave, onCancel }) {
   );
 }
 
-export default function EpicsPanel({ epics, tasks, currentDate, onEpicsChange, onTasksChange }) {
+export default function EpicsPanel({ epics, currentDate, onEpicsChange, onTasksChange }) {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
-
-  const dateStr = formatDateParam(currentDate);
 
   const handleCreate = async (data) => {
     await epicsApi.create(data);
@@ -112,26 +110,8 @@ export default function EpicsPanel({ epics, tasks, currentDate, onEpicsChange, o
           )}
 
           {epics.map(epic => {
-            // All tasks in this epic (top-level only)
-            const allEpicTasks = tasks.filter(t => t.epicId === epic.id && !t.parentId);
-
-            // Deduplicate rollover chains: the original missed task has originalScheduledDate=null
-            // and scheduledDate=X. The copy has originalScheduledDate=X.
-            // So the chain key for both is X (the original's scheduledDate).
-            const chainMap = new Map();
-            for (const t of allEpicTasks) {
-              const chainKey = t.originalScheduledDate ?? t.scheduledDate;
-              const existing = chainMap.get(chainKey);
-              if (!existing) {
-                chainMap.set(chainKey, t);
-              } else {
-                // Prefer non-missed; among same status prefer higher rolloverCount
-                const preferNew = (!t.isMissed && existing.isMissed) ||
-                  (t.isMissed === existing.isMissed && (t.rolloverCount ?? 0) > (existing.rolloverCount ?? 0));
-                if (preferNew) chainMap.set(chainKey, t);
-              }
-            }
-            const epicTasks = [...chainMap.values()];
+            // Tasks come pre-filtered from backend
+            const epicTasks = epic.tasks ?? [];
             const doneTasks = epicTasks.filter(t => isCompletedOnDate(t, currentDate));
 
             return (

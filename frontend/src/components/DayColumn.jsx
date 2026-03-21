@@ -21,7 +21,7 @@ import { isRecurringActiveOnDate, isCompletedOnDate, isTaskStickyOnDate, formatD
 import { sortTasks } from './App';
 import './TaskCard.css';
 
-export default function DayColumn({ date, allTasks, epics = [], sortBy = 'manual', onUpdate, onDelete, onCreate, onClickHeader, compact = false }) {
+export default function DayColumn({ date, allTasks, epics = [], sortBy = 'manual', preFiltered = false, onUpdate, onDelete, onCreate, onClickHeader, compact = false }) {
   const [activeId, setActiveId] = useState(null);
   const isCurrentDay = isToday(date);
   const isPast = isBefore(startOfDay(date), startOfDay(new Date()));
@@ -33,24 +33,28 @@ export default function DayColumn({ date, allTasks, epics = [], sortBy = 'manual
 
   const dateStr = formatDateParam(date);
 
-  // Tasks scheduled exactly on this date
-  const ownTasks = allTasks.filter(t => {
-    if (t.parentId) return false;
-    if ((t.recurrenceMask ?? 0) !== 0) return isRecurringActiveOnDate(t, date);
-    return t.scheduledDate === dateStr;
-  });
-
-  // Sticky tasks: weekly/monthly/yearly from the same period, shown every day until done
-  const stickyTasks = allTasks
-    .filter(t => isTaskStickyOnDate(t, date))
-    .map(t => ({ ...t, _sticky: true }));
-
-  // Merge — own tasks take priority (avoid duplicates)
-  const ownIds = new Set(ownTasks.map(t => t.id));
-  const dayTasks = [
-    ...ownTasks,
-    ...stickyTasks.filter(t => !ownIds.has(t.id)),
-  ].sort((a, b) => a.sortOrder - b.sortOrder);
+  let dayTasks;
+  if (preFiltered) {
+    // Backend already returned only tasks for this day
+    dayTasks = allTasks
+      .filter(t => !t.parentId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  } else {
+    // Week/Month/Year: client-side filter from range results
+    const ownTasks = allTasks.filter(t => {
+      if (t.parentId) return false;
+      if ((t.recurrenceMask ?? 0) !== 0) return isRecurringActiveOnDate(t, date);
+      return t.scheduledDate === dateStr;
+    });
+    const stickyTasks = allTasks
+      .filter(t => isTaskStickyOnDate(t, date))
+      .map(t => ({ ...t, _sticky: true }));
+    const ownIds = new Set(ownTasks.map(t => t.id));
+    dayTasks = [
+      ...ownTasks,
+      ...stickyTasks.filter(t => !ownIds.has(t.id)),
+    ].sort((a, b) => a.sortOrder - b.sortOrder);
+  }
 
   const doneTasks   = dayTasks.filter(t => isCompletedOnDate(t, date));
   const missedTasks = dayTasks.filter(t =>

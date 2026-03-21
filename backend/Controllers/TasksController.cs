@@ -17,10 +17,12 @@ public class TasksController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet]
-    public async Task<IActionResult> GetAll()
+    [HttpGet("day")]
+    public async Task<IActionResult> GetDay([FromQuery] string date)
     {
-        var tasks = await _taskService.GetAllTasksAsync();
+        if (!DateOnly.TryParse(date, out var d))
+            return BadRequest("Invalid date format. Use yyyy-MM-dd.");
+        var tasks = await _taskService.GetTasksForDayAsync(d);
         return Ok(tasks);
     }
 
@@ -43,7 +45,7 @@ public class TasksController : ControllerBase
         var task = await _taskService.CreateTaskAsync(req);
         _logger.LogInformation("Task created: [{Level}] \"{Title}\" (id={Id}, date={Date})",
             task.Level, task.Title, task.Id, task.ScheduledDate);
-        return CreatedAtAction(nameof(GetAll), new { id = task.Id }, task);
+        return CreatedAtAction(nameof(GetDay), new { date = task.ScheduledDate }, task);
     }
 
     [HttpPut("{id}")]
@@ -92,12 +94,12 @@ public class TasksController : ControllerBase
     }
 
     [HttpPost("{id}/top")]
-    public async Task<IActionResult> MoveToTop(string id)
+    public async Task<IActionResult> MoveToTop(string id, [FromBody] MoveToTopRequest req)
     {
-        await _taskService.MoveToTopAsync(id);
-        _logger.LogInformation("Task moved to top (id={Id})", id);
-        var all = await _taskService.GetAllTasksAsync();
-        return Ok(all);
+        await _taskService.MoveToTopAsync(id, req.Date);
+        _logger.LogInformation("Task moved to top (id={Id}, date={Date})", id, req.Date);
+        var tasks = await _taskService.GetTasksForDayAsync(req.Date);
+        return Ok(tasks);
     }
 
     [HttpPost("reorder")]
@@ -266,8 +268,13 @@ public class EpicsController : ControllerBase
     public EpicsController(DataStore store) { _store = store; }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll() =>
-        Ok(await _store.GetEpicsAsync());
+    public async Task<IActionResult> GetAll([FromQuery] string? date = null)
+    {
+        var today = date != null && DateOnly.TryParse(date, out var d)
+            ? d
+            : DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        return Ok(await _store.GetEpicsWithTasksAsync(today));
+    }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] EpicRequest req)
