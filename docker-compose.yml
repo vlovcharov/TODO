@@ -35,7 +35,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/tasks || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/tasks/day?date=2000-01-01 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
